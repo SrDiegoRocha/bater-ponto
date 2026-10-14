@@ -1,0 +1,4 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 220 40" fill="none">
+  <!-- Wordmark "bater ponto." em Inter Bold, tracking -2%. O ponto final é sempre na cor primária. -->
+  <text x="0" y="30" font-family="Inter" font-weight="700" font-size="32" letter-spacing="-0.64" fill="#0B0D10">bater ponto<tspan fill="#0B7F50">.</tspan></text>
+</svg>

@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none">
+  <!-- "O Ponto": anel de 300° (12h → 10h, sentido horário) que termina na batida que fecha o dia -->
+  <path d="M12 3 A9 9 0 1 1 4.2058 7.5" stroke="#3DDC97" stroke-width="2.5" stroke-linecap="round"/>
+  <circle cx="4.2058" cy="7.5" r="2.25" fill="#3DDC97"/>
+</svg>
