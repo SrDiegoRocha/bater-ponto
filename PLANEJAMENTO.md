@@ -864,7 +864,12 @@ Onboarding · HOJE (botão, estados, timeline, cronômetro) · Histórico (lista
 > - **Animações que ficaram de fora** (baixo impacto): bolha deslizante no calendário, rolagem de dígito no editor, crossfade ao trocar o tema e trocar de período deslizando o dedo.
 Ilustrações dos estados vazios · Animação de abertura (splash → anel) · Imagem de destaque da Play Store · Todas as animações da seção 7 · Gráficos (barras, heatmap) · Indicadores secundários · Comparação entre períodos · Modo CLT (extras 50%/100%, noturno, INSS/IRRF) · Simulador · **Exportação em PDF** · Ajustes de feriados (desativar, facultativos, próprios).
 
-**Fase 3: Extras**
+**Fase 3: Extras** ✅ concluída em 14/10/2026
+
+> Notas de implementação da fase 3:
+> - **Meta por dia da semana**: Ajustes → Jornada. Começa com a meta padrão em todos os dias e o usuário ajusta só os diferentes. Vale para o anel, o banco de horas e as extras do modo CLT.
+> - **Biometria** (`expo-local-authentication`): L1–L8 implementadas. Aceita digital/rosto ou o PIN/padrão do Android. Ao travar, sheets e modais abertos são fechados (eles são janelas nativas por cima do app). O conteúdo some dos apps recentes via `expo-screen-capture` (FLAG_SECURE), o que também bloqueia capturas de tela enquanto a trava estiver ligada.
+> - **EAS**: projeto `@diegorocha/bater-ponto`, pacote `com.diegorocha.baterponto`. Perfis `development` (dev client, APK), `preview` (APK para instalar direto) e `production` (AAB para a Play Store, versionCode automático e remoto). Keystore gerenciada pelo EAS.
 Meta por dia da semana · Bloqueio por biometria (3.10) · Primeiro build de desenvolvimento/produção com EAS (`eas build --platform android`).
 
 ---

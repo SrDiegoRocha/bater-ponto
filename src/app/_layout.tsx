@@ -9,6 +9,7 @@ import { useEffect, useMemo } from 'react';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
 import { DATABASE_NAME, migrateDbIfNeeded } from '@/db/migrations';
+import { LockGate } from '@/components/lock/lock-gate';
 import { ToastHost } from '@/components/ui';
 import { useSettingsStore } from '@/stores/settings-store';
 import { fonts, ThemeProvider, useTheme } from '@/theme';
@@ -107,9 +108,11 @@ function AppNavigator({ ready }: { ready: boolean }) {
         <Stack.Screen name="ajustes/salario" options={{ ...header, title: 'Salário' }} />
         <Stack.Screen name="ajustes/feriados" options={{ ...header, title: 'Feriados' }} />
         <Stack.Screen name="ajustes/aparencia" options={{ ...header, title: 'Aparência' }} />
+        <Stack.Screen name="ajustes/seguranca" options={{ ...header, title: 'Segurança' }} />
         <Stack.Screen name="ajustes/dados" options={{ ...header, title: 'Dados e backup' }} />
       </Stack>
       <ToastHost />
+      <LockGate />
     </NavigationThemeProvider>
   );
 }

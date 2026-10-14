@@ -48,3 +48,10 @@ describe('salário simples', () => {
     expect(simpleGrossCents(10 * HOUR, 0)).toBe(0);
   });
 });
+
+it('meta por dia da semana continua funcionando depois de salva em JSON (chaves viram texto)', () => {
+  const stored = JSON.parse(JSON.stringify({ defaultMinutes: 480, byWeekday: { 6: 240, 0: 0 } }));
+  expect(goalForDate('2026-10-17', stored)).toBe(4 * HOUR); // sábado
+  expect(goalForDate('2026-10-18', stored)).toBe(0); // domingo
+  expect(goalForDate('2026-10-19', stored)).toBe(8 * HOUR); // segunda
+});

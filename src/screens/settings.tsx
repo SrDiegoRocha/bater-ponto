@@ -9,6 +9,7 @@ import { BrandLockup } from '@/components/brand/brand-mark';
 import { Illustration } from '@/components/brand/illustrations';
 import { Button, Card, ChoiceChips, Divider, ListRow, Screen, SectionHeader, Stepper, SwitchRow, Text } from '@/components/ui';
 import { MoneyInput } from '@/components/ui/money-input';
+import { useDbQuery } from '@/hooks/use-db-query';
 import { useNow } from '@/hooks/use-now';
 import { getPeriodContaining, periodLabel, periodRangeLabel } from '@/domain/period';
 import { MINUTE, toDateKey } from '@/domain/time';
@@ -16,7 +17,10 @@ import type { Settings, ThemePreference } from '@/db/settings-repo';
 import { TAX_YEAR } from '@/domain/tax-2026';
 import { formatDuration, formatMoney } from '@/lib/format';
 import { toCents } from '@/domain/salary';
+import { authenticate, getLockAvailability } from '@/services/auth-service';
 import { backupFlow, eraseFlow, restoreFlow } from '@/services/backup-flows';
+import { useLockStore } from '@/stores/lock-store';
+import { showToast } from '@/stores/ui-store';
 import { useSettings, useSettingsStore } from '@/stores/settings-store';
 import { spacing } from '@/theme';
 
@@ -31,11 +35,13 @@ export function SettingsHome() {
       <Card style={styles.list}>
         <ListRow title="Período" subtitle="Dia em que seu mês começa" icon="date_range" value={`dia ${s.periodStartDay}`} onPress={() => router.push('/ajustes/periodo')} />
         <Divider inset={36} />
-        <ListRow title="Jornada" subtitle="Meta diária" icon="schedule" value={formatDuration(s.dailyGoal.defaultMinutes * MINUTE)} onPress={() => router.push('/ajustes/jornada')} />
+        <ListRow title="Jornada" subtitle={s.dailyGoal.byWeekday ? 'Meta por dia da semana' : 'Meta diária'} icon="schedule" value={formatDuration(s.dailyGoal.defaultMinutes * MINUTE)} onPress={() => router.push('/ajustes/jornada')} />
         <Divider inset={36} />
         <ListRow title="Salário" subtitle={s.salaryMode === 'clt' ? 'Valor da hora · modo CLT' : 'Valor da hora'} icon="payments" value={s.hourlyRate > 0 ? formatMoney(toCents(s.hourlyRate)) : '—'} onPress={() => router.push('/ajustes/salario')} />
         <Divider inset={36} />
         <ListRow title="Feriados" subtitle={s.optionalHolidays ? 'Nacionais + facultativos' : 'Nacionais automáticos'} icon="celebration" onPress={() => router.push('/ajustes/feriados')} />
+        <Divider inset={36} />
+        <ListRow title="Segurança" subtitle={s.biometricLock ? 'Trava ligada' : 'Trava desligada'} icon="fingerprint" onPress={() => router.push('/ajustes/seguranca')} />
         <Divider inset={36} />
         <ListRow title="Aparência" icon="contrast" value={themeLabel[s.theme]} onPress={() => router.push('/ajustes/aparencia')} />
         <Divider inset={36} />
@@ -82,15 +88,34 @@ export function PeriodSettings() {
   );
 }
 
+const WEEKDAY_NAMES = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'];
+const WEEK_ORDER = [1, 2, 3, 4, 5, 6, 0];
+
 export function WorkdaySettings() {
   const db = useSQLiteContext();
   const { dailyGoal } = useSettings();
   const update = useSettingsStore((st) => st.update);
+  const perWeekday = !!dailyGoal.byWeekday;
+  const hours = (m: number) => formatDuration(m * MINUTE);
+
+  function togglePerWeekday(on: boolean) {
+    if (!on) {
+      update(db, { dailyGoal: { defaultMinutes: dailyGoal.defaultMinutes } });
+      return;
+    }
+    // Começa com a meta padrão em todos os dias; o usuário ajusta só os diferentes
+    const byWeekday = Object.fromEntries(WEEK_ORDER.map((d) => [d, dailyGoal.defaultMinutes]));
+    update(db, { dailyGoal: { ...dailyGoal, byWeekday } });
+  }
+
+  const setDay = (day: number, minutes: number) =>
+    update(db, { dailyGoal: { ...dailyGoal, byWeekday: { ...dailyGoal.byWeekday, [day]: minutes } } });
+
   return (
     <Screen nativeHeader>
       <Card style={styles.gap}>
         <Text variant="body" color="textMuted">
-          Meta diária
+          {perWeekday ? 'Meta padrão (dias sem ajuste)' : 'Meta diária'}
         </Text>
         <Stepper
           label="Meta diária"
@@ -98,13 +123,100 @@ export function WorkdaySettings() {
           min={0}
           max={16 * 60}
           step={15}
-          format={(m) => formatDuration(m * MINUTE)}
+          format={hours}
           onChange={(v) => update(db, { dailyGoal: { ...dailyGoal, defaultMinutes: v } })}
         />
       </Card>
+
+      <Card style={styles.gap}>
+        <SwitchRow
+          title="Meta diferente por dia da semana"
+          subtitle="Ex.: sábado 4h, domingo 0h"
+          value={perWeekday}
+          onValueChange={togglePerWeekday}
+        />
+        {perWeekday
+          ? WEEK_ORDER.map((day) => (
+              <View key={day} style={styles.weekday}>
+                <Text variant="body" style={styles.weekdayLabel}>
+                  {WEEKDAY_NAMES[day]}
+                </Text>
+                <Stepper
+                    label={`Meta de ${WEEKDAY_NAMES[day]}`}
+                    value={dailyGoal.byWeekday?.[day] ?? dailyGoal.defaultMinutes}
+                    min={0}
+                    max={16 * 60}
+                    step={15}
+                    format={hours}
+                    onChange={(v) => setDay(day, v)}
+                  />
+              </View>
+            ))
+          : null}
+      </Card>
       <Text variant="caption" color="textMuted">
-        Usada no anel da tela Hoje e no banco de horas. Em folgas, férias, atestados e feriados a meta é zero, então qualquer hora
-        trabalhada nesses dias vira saldo positivo.
+        Usada no anel da tela Hoje, no banco de horas e nas horas extras do modo CLT. Em folgas, férias, atestados e feriados a
+        meta é zero, então qualquer hora trabalhada nesses dias vira saldo positivo.
+      </Text>
+    </Screen>
+  );
+}
+
+const LOCK_AFTER = [
+  { value: '0', label: 'Imediatamente' },
+  { value: '60', label: '1 min' },
+  { value: '300', label: '5 min' },
+  { value: '900', label: '15 min' },
+] as const;
+
+export function SecuritySettings() {
+  const db = useSQLiteContext();
+  const { biometricLock, lockAfterSec } = useSettings();
+  const update = useSettingsStore((st) => st.update);
+  const { data: availability } = useDbQuery(() => getLockAvailability(), []);
+
+  async function toggle(on: boolean) {
+    if (!on) {
+      if (await authenticate('Confirme para desligar a trava')) update(db, { biometricLock: false });
+      return;
+    }
+    // L1: autenticação de teste antes de ligar — evita trancar o usuário fora
+    if (await authenticate('Confirme para ligar a trava')) {
+      useLockStore.getState().setLocked(false);
+      await update(db, { biometricLock: true });
+      showToast('Trava ligada');
+    }
+  }
+
+  return (
+    <Screen nativeHeader>
+      <Card style={styles.gap}>
+        <SwitchRow
+          title="Bloquear com biometria"
+          subtitle={
+            availability && !availability.available
+              ? availability.reason
+              : 'Digital, rosto ou o bloqueio de tela do Android'
+          }
+          value={biometricLock}
+          disabled={!availability?.available}
+          onValueChange={toggle}
+        />
+      </Card>
+      {biometricLock ? (
+        <>
+          <SectionHeader title="Pedir de novo após" />
+          <ChoiceChips
+            options={LOCK_AFTER}
+            value={String(lockAfterSec) as (typeof LOCK_AFTER)[number]['value']}
+            onChange={(v) => update(db, { lockAfterSec: Number(v) })}
+          />
+        </>
+      ) : null}
+      <Text variant="caption" color="textMuted">
+        Com a trava ligada, o app pede autenticação ao abrir e ao voltar do segundo plano, esconde o conteúdo na tela de apps
+        recentes e confirma de novo antes de restaurar um backup ou apagar os dados. Essa configuração fica só neste aparelho e
+        não vai no backup.
       </Text>
     </Screen>
   );
@@ -255,4 +367,6 @@ const styles = StyleSheet.create({
   list: { paddingVertical: spacing.xs },
   gap: { gap: spacing.md },
   about: { alignItems: 'center', gap: spacing.sm, paddingTop: spacing.xl },
+  weekday: { gap: spacing.xs },
+  weekdayLabel: { paddingTop: spacing.sm },
 });

@@ -75,7 +75,7 @@ O usuário marca explicitamente o **início do dia** e o **fim do dia**, então 
 | **0 · Fundação** | Identidade visual e ativos, configuração Android, Expo Router, design system, SQLite + migrações, regras de domínio com testes | ✅ Concluída |
 | **1 · MVP** | Onboarding, tela Hoje funcional, histórico, edição de horários, folgas, feriados, resumo, calculadora simples, backup | ✅ Concluída |
 | **2 · Premium** | Animações, gráficos, modo CLT, simulador, exportação em PDF, ajustes de feriados | ✅ Concluída |
-| **3 · Extras** | Meta por dia da semana, bloqueio por biometria, build com EAS | ⏳ Próxima |
+| **3 · Extras** | Meta por dia da semana, bloqueio por biometria, build com EAS | ✅ Concluída |
 
 O que já existe hoje:
 
@@ -91,8 +91,11 @@ O que já existe hoje:
 - ✅ **Feriados**: ativar/desativar por ano ou para sempre, pontos facultativos e feriados próprios (recorrentes ou não).
 - ✅ **Histórico**: deslizar para excluir (com desfazer) e entrada animada da lista.
 - ✅ **Ilustrações** dos estados vazios e **imagem de destaque** da Play Store.
+- ✅ **Meta por dia da semana** (ex.: sábado 4h, domingo 0h).
+- ✅ **Bloqueio por biometria**: digital/rosto ou PIN do Android, ao abrir e ao voltar do segundo plano (tempo configurável), conteúdo oculto nos apps recentes, confirmação extra para restaurar e apagar.
+- ✅ **Build com EAS**: perfis de desenvolvimento, preview (APK) e produção (AAB).
 - ✅ **Ajustes**: período, meta diária, valor da hora, aparência (sistema/claro/escuro), backup, restauração e apagar tudo.
-- ✅ **150 testes**: regras puras, cálculos CLT/impostos, PDF e casos de uso rodando contra SQLite real.
+- ✅ **151 testes**: regras puras, cálculos CLT/impostos, PDF e casos de uso rodando contra SQLite real.
 - ✅ Logo, ícone adaptativo/monocromático, splash claro/escuro, favicon e ícone da Play Store gerados por script.
 
 ---
@@ -265,7 +268,8 @@ Wordmark: `bater ponto.` em Inter Bold, minúsculas, com o **ponto final sempre 
 | PDF | `expo-print` (HTML → PDF) |
 | Switch e Slider nativos | `@expo/ui` (Jetpack Compose) |
 
-Previsto para a próxima fase: `expo-local-authentication` (biometria).
+| Biometria | `expo-local-authentication` + `expo-screen-capture` (oculta nos recentes) |
+| Build e distribuição | EAS Build (`eas.json`) + `expo-dev-client` |
 
 ---
 
@@ -372,7 +376,19 @@ npx expo start
 
 Escaneie o QR code com o Expo Go (Android) ou pressione `a` para abrir no emulador.
 
-> **Expo Go vs. development build:** tudo da fase 0/1 roda no Expo Go. Biometria e as fontes embutidas nativamente exigem um *development build* (`npx expo run:android` ou `eas build --profile development`). No Expo Go as fontes são carregadas em runtime automaticamente.
+> **Expo Go vs. build próprio:** quase tudo roda no Expo Go (as fontes são carregadas em runtime e a biometria funciona no Android). A animação de saída da splash e as fontes embutidas só existem num build próprio.
+
+### Builds com EAS
+
+O projeto está ligado ao EAS como `@diegorocha/bater-ponto` (pacote `com.diegorocha.baterponto`).
+
+| Perfil | Para quê | Comando |
+|---|---|---|
+| `preview` | APK para instalar direto no celular | `npx eas-cli@latest build -p android --profile preview` |
+| `development` | Dev client (APK) para desenvolver com recarga rápida | `npx eas-cli@latest build -p android --profile development` |
+| `production` | AAB para a Play Store (versionCode automático) | `npx eas-cli@latest build -p android --profile production` |
+
+Ao terminar, o EAS mostra um link/QR code para baixar o APK no celular.
 
 As pastas `android/` e `ios/` **não** são versionadas: são geradas pelo Expo (Continuous Native Generation). Configure tudo em `app.json` e config plugins.
 
@@ -399,7 +415,7 @@ As pastas `android/` e `ios/` **não** são versionadas: são geradas pelo Expo 
 npm test
 ```
 
-15 suítes, 150 testes, cobrindo:
+15 suítes, 151 testes, cobrindo:
 
 - **Jornadas**: os exemplos A e B, jornada aberta até "agora", batidas fora de ordem, sequência inconsistente.
 - **Períodos**: 21→20, o dia 21 abrindo o próximo período, virada de ano, dia de início 31 em fevereiro (inclusive bissexto), sem buracos nem sobreposição.
@@ -460,7 +476,7 @@ Onboarding · Tela Hoje funcional (botão de estado, cronômetro, timeline) · H
 **Fase 2 · Premium** ✅
 Animações completas · Gráficos (barras, heatmap) · Indicadores secundários · Comparação entre períodos · Modo CLT (extras 50%/100%, noturno, INSS/IRRF) · Simulador · Exportação em PDF · Ajustes de feriados · Ilustrações dos estados vazios · Animação de abertura (splash → anel).
 
-**Fase 3 · Extras**
+**Fase 3 · Extras** ✅
 Meta por dia da semana · Bloqueio por biometria · Build de produção com EAS.
 
 **Fora do escopo (decidido):** iOS, sincronização em nuvem/login, widget, notificações/lembretes, etiquetas por turno.
