@@ -1,5 +1,6 @@
 import type { SQLiteDatabase } from 'expo-sqlite';
 
+import { copyShifts } from '@/domain/copy-workday';
 import { deriveDayState, transition, type DayAction } from '@/domain/state-machine';
 import { MINUTE } from '@/domain/time';
 import type { DateKey, DayOffKind, Punch, PunchKind, PunchSource } from '@/domain/types';
@@ -280,4 +281,58 @@ export async function clearDayOffs(db: SQLiteDatabase, dates: readonly DateKey[]
     for (const d of previous) await upsertDayOffs(db, [d.date], d.kind, d.note);
     bumpData();
   };
+}
+
+// ---- Copiar jornada para outros dias -----------------------------------------------------------
+
+export type CopyResult = {
+  created: { date: DateKey; workdayId: string }[];
+  skipped: { date: DateKey; reason: string }[];
+  undo: Undo;
+};
+
+/** Copia os turnos de uma jornada completa para outras datas. Dias com folga ou conflito são pulados. */
+export async function copyWorkdayToDates(db: SQLiteDatabase, workdayId: string, dates: readonly DateKey[]): Promise<CopyResult> {
+  const source = await getWorkday(db, workdayId);
+  if (!source) throw new RuleError('Jornada não encontrada.');
+  const sample = copyShifts(source.punches, source.refDate, source.refDate);
+  if (!sample) throw new RuleError('Só dá para copiar uma jornada completa (todas as entradas com saída).');
+
+  const sorted = [...new Set(dates)].sort();
+  const dayOffs = sorted.length ? await listDayOffs(db, sorted[0], sorted.at(-1)!) : [];
+  const created: CopyResult['created'] = [];
+  const skipped: CopyResult['skipped'] = [];
+
+  for (const date of sorted) {
+    if (date === source.refDate) {
+      skipped.push({ date, reason: 'é o próprio dia da jornada' });
+      continue;
+    }
+    if (dayOffs.some((d) => d.date === date)) {
+      skipped.push({ date, reason: 'está marcado como folga' });
+      continue;
+    }
+    try {
+      const { workdayId: id } = await createManualWorkday(db, copyShifts(source.punches, source.refDate, date)!);
+      created.push({ date, workdayId: id });
+    } catch (e) {
+      if (!(e instanceof RuleError)) throw e;
+      skipped.push({ date, reason: e.message.replace(/\.$/, '').toLowerCase() });
+    }
+  }
+
+  return {
+    created,
+    skipped,
+    undo: undoTo(db, new Map(created.map((c) => [c.workdayId, null]))),
+  };
+}
+
+/** Última jornada completa antes de uma data (atalho "copiar a jornada de ontem") */
+export async function findLastCompleteWorkday(db: SQLiteDatabase, before: DateKey): Promise<WorkdayWithPunches | null> {
+  const row = await db.getFirstAsync<{ id: string }>(
+    "SELECT id FROM workday WHERE status = 'closed' AND ref_date < ? ORDER BY ref_date DESC LIMIT 1",
+    before,
+  );
+  return row ? getWorkday(db, row.id) : null;
 }

@@ -133,7 +133,7 @@ Trabalhado: 5h + 3h + 3h = 11h  |  Intervalos: 8h + 3h = 11h  |  Amplitude: 22h
 | P2 | Período = de `dia_inicio` do mês M até **`dia_inicio - 1`** do mês M+1, inclusive (ex.: 21/09 a 20/10). O dia 21/10 já abre o próximo período |
 | P3 | A jornada entra no período da sua **data de referência**, mesmo que termine no período seguinte |
 | P4 | Mudar o dia de início recalcula a visualização. Não altera nenhum dado salvo (períodos são derivados, não armazenados) |
-| P5 | Nome do período = **mês em que ele começa** (ex.: "Setembro 2026 · 21/09 a 20/10") |
+| P5 | Nome do período = **meses que ele cobre**: "Set–Out 2026 · 21/09 a 20/10"; na virada do ano "Dez 2026–Jan 2027"; se cabe num mês só (início no dia 1), o mês por extenso ("Outubro 2026") |
 | P6 | Período em andamento mostra projeções ("no ritmo atual: ~X h") |
 
 ### 3.5 Regras de cálculo
@@ -271,6 +271,7 @@ Usa `expo-local-authentication` (digital ou rosto, conforme o aparelho), com fal
 | ED9 | Editar uma batida da jornada **em andamento** é permitido. O cronômetro e o anel se recalculam na hora |
 | ED10 | Sair sem salvar (voltar ou arrastar o sheet para baixo) descarta, sem perguntar se nada mudou. Se mudou, pergunta "Descartar alteração?" |
 | ED11 | Tudo vale para jornadas antigas também. Não há "período fechado" que trave edição |
+| ED12 | **Copiar jornada**: uma jornada completa pode ser copiada para um ou vários dias (mesmos horários de relógio, a madrugada continua no dia seguinte). Dias com folga, a própria data e dias com conflito são pulados e listados. Tudo com "Desfazer". Atalhos: "Dia anterior/seguinte", "Semana anterior/seguinte", e no calendário um dia vazio oferece "Copiar jornada de {último dia}" |
 
 ---
 

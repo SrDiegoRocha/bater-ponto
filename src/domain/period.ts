@@ -63,10 +63,24 @@ export function periodDates(period: Period): DateKey[] {
   return dates;
 }
 
-/** "Setembro 2026" */
+const MONTHS = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+
+/**
+ * Nome do período pelos meses que ele cobre (P5):
+ * "Set–Out 2026" · "Dez 2026–Jan 2027" na virada do ano · "Outubro 2026" quando cabe num mês só (início no dia 1).
+ */
 export function periodLabel(period: Period): string {
-  const label = format(new Date(period.year, period.month, 1), 'LLLL yyyy', { locale: ptBR });
-  return label.charAt(0).toUpperCase() + label.slice(1);
+  const start = fromDateKey(period.start);
+  const end = fromDateKey(period.end);
+  if (start.getMonth() === end.getMonth() && start.getFullYear() === end.getFullYear()) {
+    const label = format(start, 'LLLL yyyy', { locale: ptBR });
+    return label.charAt(0).toUpperCase() + label.slice(1);
+  }
+  const from = MONTHS[start.getMonth()];
+  const to = MONTHS[end.getMonth()];
+  return start.getFullYear() === end.getFullYear()
+    ? `${from}–${to} ${end.getFullYear()}`
+    : `${from} ${start.getFullYear()}–${to} ${end.getFullYear()}`;
 }
 
 /** "21/09 a 20/10" */

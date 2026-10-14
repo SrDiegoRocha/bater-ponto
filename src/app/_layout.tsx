@@ -101,6 +101,7 @@ function AppNavigator({ ready }: { ready: boolean }) {
         <Stack.Screen name="folga" options={sheet} />
         <Stack.Screen name="turno" options={sheet} />
         <Stack.Screen name="exportar" options={sheet} />
+        <Stack.Screen name="copiar" options={sheet} />
         <Stack.Screen name="feriado-novo" options={sheet} />
         <Stack.Screen name="ajustes/index" options={{ ...header, title: 'Ajustes' }} />
         <Stack.Screen name="ajustes/periodo" options={{ ...header, title: 'Período' }} />

@@ -49,7 +49,7 @@ it('monta o espelho com batidas, +1, editadas, folgas, feriados e escapa HTML', 
     salary: { mode: 'simple', hourlyRate: 20, grossCents: 6000 },
   });
 
-  expect(html).toContain('Espelho de ponto · Setembro 2026');
+  expect(html).toContain('Espelho de ponto · Set–Out 2026');
   expect(html).toContain('23:00');
   expect(html).toContain('02:00<sup>+1</sup>*');
   expect(html).toContain('Folga');

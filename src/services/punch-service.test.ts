@@ -9,6 +9,8 @@ import { createMemoryDb } from '@/test/memory-db';
 
 import {
   addPunchesToWorkday,
+  copyWorkdayToDates,
+  findLastCompleteWorkday,
   createManualWorkday,
   editPunchTime,
   getEditContext,
@@ -175,4 +177,37 @@ it('backup: exportar → importar em outro banco preserva tudo', async () => {
   await importData(other, data);
   expect(await exportData(other)).toEqual(data);
   expect(await listWorkdays(other, '2026-10-01', '2026-10-31')).toHaveLength(1);
+});
+
+describe('copiar jornada', () => {
+  it('copia para vários dias, pulando folga, o próprio dia e conflitos; desfazer remove tudo', async () => {
+    const end = await dayB(); // jornada de 13/10, 04:00 → 02:00 (+1)
+    await setDayOffs(db, ['2026-10-11'], 'folga');
+    // conflito: jornada que invade 06/10 → 07/10 01:00
+    await createManualWorkday(db, [{ start: t('2026-10-07T00:30:00'), end: t('2026-10-07T03:00:00') }]);
+
+    const result = await copyWorkdayToDates(db, end.workdayId, ['2026-10-05', '2026-10-06', '2026-10-11', '2026-10-13']);
+    expect(result.created.map((c) => c.date)).toEqual(['2026-10-05']);
+    expect(result.skipped.map((s) => s.date)).toEqual(['2026-10-06', '2026-10-11', '2026-10-13']);
+
+    const copy = (await getWorkday(db, result.created[0].workdayId))!;
+    expect(copy.refDate).toBe('2026-10-05');
+    expect(copy.status).toBe('closed');
+    expect(summarizeWorkday(copy.punches).workedMs).toBe(11 * HOUR);
+    expect(copy.punches.at(-1)!.at).toBe(t('2026-10-06T02:00:00'));
+
+    await result.undo();
+    expect(await getWorkday(db, result.created[0].workdayId)).toBeNull();
+  });
+
+  it('não copia jornada em andamento', async () => {
+    const start = await performDayAction(db, 'startDay', { at: t('2026-10-14T08:00:00') });
+    await expect(copyWorkdayToDates(db, start.workdayId, ['2026-10-13'])).rejects.toThrow(RuleError);
+  });
+
+  it('acha a última jornada completa antes de uma data', async () => {
+    const end = await dayB();
+    expect((await findLastCompleteWorkday(db, '2026-10-20'))!.id).toBe(end.workdayId);
+    expect(await findLastCompleteWorkday(db, '2026-10-13')).toBeNull();
+  });
 });

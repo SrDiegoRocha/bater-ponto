@@ -11,8 +11,9 @@ import { holidaysInRange } from '@/domain/holidays';
 import type { DateKey, DayOffKind } from '@/domain/types';
 import { listDayOffs } from '@/db/day-off-repo';
 import { listHolidayOverrides } from '@/db/holiday-repo';
-import { formatShortDate } from '@/lib/format';
-import { clearDayOffs, findWorkdaysOnDates, setDayOffs } from '@/services/punch-service';
+import { toDateKey } from '@/domain/time';
+import { formatShortDate, formatTime } from '@/lib/format';
+import { clearDayOffs, copyWorkdayToDates, findLastCompleteWorkday, findWorkdaysOnDates, setDayOffs } from '@/services/punch-service';
 import { useSettings } from '@/stores/settings-store';
 import { showToast } from '@/stores/ui-store';
 import { spacing } from '@/theme';
@@ -37,10 +38,12 @@ export function DayOffSheet({ dates }: { dates: DateKey[] }) {
       dayOffs: await listDayOffs(d, sorted[0], sorted.at(-1)!),
       workdays: await findWorkdaysOnDates(d, dates),
       overrides: await listHolidayOverrides(d),
+      lastComplete: dates.length === 1 ? await findLastCompleteWorkday(d, dates[0]) : null,
     }),
     [dates.join(',')],
   );
   const [kind, setKind] = useState<DayOffKind | null>(null);
+  const [today] = useState(() => toDateKey(Date.now()));
 
   if (!data) return <SheetContainer />;
 
@@ -73,6 +76,18 @@ export function DayOffSheet({ dates }: { dates: DateKey[] }) {
     });
   }
 
+  async function copyLast() {
+    const source = data!.lastComplete!;
+    const { created, skipped, undo } = await copyWorkdayToDates(db, source.id, [single!]);
+    if (created.length === 0) {
+      Alert.alert('Não foi possível copiar', skipped[0]?.reason ?? '');
+      return;
+    }
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+    router.back();
+    showToast(`Jornada de ${formatShortDate(source.refDate)} copiada`, { actions: [{ label: 'Desfazer', onPress: () => undo() }] });
+  }
+
   async function remove() {
     const undo = await clearDayOffs(db, dates);
     router.back();
@@ -99,6 +114,15 @@ export function DayOffSheet({ dates }: { dates: DateKey[] }) {
 
       <Button label="Salvar" size="lg" block onPress={() => save()} />
       {existing.length > 0 ? <Button label="Remover folga" variant="destructive" icon="delete" onPress={remove} /> : null}
+      {single && data.lastComplete && data.workdays.length === 0 && existing.length === 0 && single <= today ? (
+        <Button
+          label={`Copiar jornada de ${formatShortDate(data.lastComplete.refDate)} (${formatTime(data.lastComplete.punches[0].at)} → ${formatTime(data.lastComplete.punches.at(-1)!.at)})`}
+          variant="secondary"
+          icon="content_copy"
+          block
+          onPress={copyLast}
+        />
+      ) : null}
       {single && data.workdays.length === 0 && existing.length === 0 ? (
         <Button
           label="Registrar jornada nesse dia"

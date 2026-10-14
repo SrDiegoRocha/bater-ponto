@@ -61,7 +61,7 @@ O usuário marca explicitamente o **início do dia** e o **fim do dia**, então 
 | Plataforma | **Somente Android** |
 | Dados | **100% no aparelho** (SQLite), com backup/restauração por arquivo |
 | Tema | Claro e escuro, **seguindo o sistema** por padrão |
-| Período | Dia de início configurável. Padrão: **21 → 20 do mês seguinte**, nomeado pelo mês em que começa ("Setembro 2026 · 21/09 a 20/10") |
+| Período | Dia de início configurável. Padrão: **21 → 20 do mês seguinte**, nomeado pelos meses que cobre ("Set–Out 2026 · 21/09 a 20/10") |
 | Meta diária | **8h** por padrão, configurável (e por dia da semana) |
 | Intervalos | **Nunca** são remunerados; servem só como informação |
 | Salário | Modo simples (horas × valor/hora) e modo CLT opcional (extras, adicional noturno, INSS/IRRF) |
@@ -84,6 +84,7 @@ O que já existe hoje:
 - ✅ **Editor de horário**: −5/−1/+1/+5 min (segurar repete), relógio e calendário nativos, limites visíveis, prévia ao vivo dos totais, voltar ao original, excluir batida.
 - ✅ **Histórico**: calendário do período com cores por estado e feriados, seleção múltipla para folgas, lista de jornadas com mini-timeline, cadastro manual de jornada.
 - ✅ **Detalhe da jornada**: totais (trabalhado, intervalo, amplitude, noturno), timeline editável, adicionar turno ou batida, interjornada antes/depois, observação, excluir com desfazer.
+- ✅ **Copiar jornada** para um ou vários dias (mantém os horários, inclusive a madrugada), com atalho "copiar a última jornada" direto no calendário.
 - ✅ **Folgas** (folga, férias, atestado, feriado) em um ou vários dias, com proteção para dias que já têm jornada.
 - ✅ **Resumo**: cards com números animados e comparação com o período anterior, gráfico de horas por dia (com a meta) e por dia da semana, 11 indicadores de detalhe e botão de exportar PDF.
 - ✅ **Salário**: modo simples ou **modo CLT** (extras 50%/100%, domingo, adicional noturno com hora reduzida, DSR, INSS e IRRF 2026 com a isenção até R$ 5.000), recibo detalhado e simulador "E se?" com sliders.
@@ -95,7 +96,7 @@ O que já existe hoje:
 - ✅ **Bloqueio por biometria**: digital/rosto ou PIN do Android, ao abrir e ao voltar do segundo plano (tempo configurável), conteúdo oculto nos apps recentes, confirmação extra para restaurar e apagar.
 - ✅ **Build com EAS**: perfis de desenvolvimento, preview (APK) e produção (AAB).
 - ✅ **Ajustes**: período, meta diária, valor da hora, aparência (sistema/claro/escuro), backup, restauração e apagar tudo.
-- ✅ **151 testes**: regras puras, cálculos CLT/impostos, PDF e casos de uso rodando contra SQLite real.
+- ✅ **157 testes**: regras puras, cálculos CLT/impostos, PDF e casos de uso rodando contra SQLite real.
 - ✅ Logo, ícone adaptativo/monocromático, splash claro/escuro, favicon e ícone da Play Store gerados por script.
 
 ---
@@ -415,7 +416,7 @@ As pastas `android/` e `ios/` **não** são versionadas: são geradas pelo Expo 
 npm test
 ```
 
-15 suítes, 151 testes, cobrindo:
+16 suítes, 157 testes, cobrindo:
 
 - **Jornadas**: os exemplos A e B, jornada aberta até "agora", batidas fora de ordem, sequência inconsistente.
 - **Períodos**: 21→20, o dia 21 abrindo o próximo período, virada de ano, dia de início 31 em fevereiro (inclusive bissexto), sem buracos nem sobreposição.

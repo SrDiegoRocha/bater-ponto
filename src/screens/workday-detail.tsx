@@ -132,6 +132,15 @@ export function WorkdayDetail({ workdayId }: { workdayId: string }) {
             block
             onPress={() => router.push({ pathname: '/turno', params: { workdayId } })}
           />
+          {workday.status === 'closed' && summary.isConsistent ? (
+            <Button
+              label="Copiar para outros dias"
+              icon="content_copy"
+              variant="ghost"
+              block
+              onPress={() => router.push({ pathname: '/copiar', params: { workdayId } })}
+            />
+          ) : null}
         </View>
       </Card>
 
@@ -176,7 +185,7 @@ function RestLine({ label, ms }: { label: string; ms: number }) {
 }
 
 const styles = StyleSheet.create({
-  actions: { marginTop: spacing.md },
+  actions: { marginTop: spacing.md, gap: spacing.sm },
   gap: { gap: spacing.sm },
   input: {
     minHeight: 72,

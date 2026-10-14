@@ -12,7 +12,7 @@ describe('período com início no dia 21 (Q1: 21/09 a 20/10)', () => {
   it('dia 14/10 cai no período Setembro (21/09–20/10)', () => {
     const p = getPeriodContaining('2026-10-14', 21);
     expect(p).toMatchObject({ start: '2026-09-21', end: '2026-10-20', year: 2026, month: 8 });
-    expect(periodLabel(p)).toBe('Setembro 2026');
+    expect(periodLabel(p)).toBe('Set–Out 2026');
     expect(periodRangeLabel(p)).toBe('21/09 a 20/10');
   });
 
@@ -24,7 +24,7 @@ describe('período com início no dia 21 (Q1: 21/09 a 20/10)', () => {
   it('atravessa a virada do ano', () => {
     const p = getPeriodContaining('2027-01-05', 21);
     expect(p).toMatchObject({ start: '2026-12-21', end: '2027-01-20' });
-    expect(periodLabel(p)).toBe('Dezembro 2026');
+    expect(periodLabel(p)).toBe('Dez 2026–Jan 2027');
   });
 
   it('navega entre períodos', () => {
@@ -56,7 +56,8 @@ describe('P1: dia de início 29–31', () => {
     expect(shiftPeriod(fev, -1, 31).end).toBe('2026-02-27');
   });
 
-  it('início no dia 1 = mês civil', () => {
+  it('início no dia 1 = mês civil, com nome do mês por extenso', () => {
     expect(getPeriodContaining('2026-02-14', 1)).toMatchObject({ start: '2026-02-01', end: '2026-02-28' });
+    expect(periodLabel(getPeriodContaining('2026-02-14', 1))).toBe('Fevereiro 2026');
   });
 });
