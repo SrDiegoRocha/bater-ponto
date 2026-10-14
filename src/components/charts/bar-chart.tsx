@@ -29,6 +29,7 @@ const RADIUS = 4;
 const GAP = 2;
 
 function barPath(x: number, w: number, baseline: number, h: number): string {
+  'worklet'; // roda na UI thread dentro de useAnimatedProps
   if (h <= 0) return '';
   const r = Math.min(RADIUS, w / 2, h);
   const top = baseline - h;
