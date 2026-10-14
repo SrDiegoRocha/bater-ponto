@@ -13,9 +13,20 @@ export type ScreenProps = ScrollViewProps & {
   /** Ação no canto do título (ex.: botão de Ajustes) */
   headerRight?: React.ReactNode;
   scroll?: boolean;
+  /** Tela com cabeçalho nativo: o topo já respeita a safe area */
+  nativeHeader?: boolean;
 };
 
-export function Screen({ title, subtitle, headerRight, scroll = true, children, contentContainerStyle, ...rest }: ScreenProps) {
+export function Screen({
+  title,
+  subtitle,
+  headerRight,
+  scroll = true,
+  nativeHeader = false,
+  children,
+  contentContainerStyle,
+  ...rest
+}: ScreenProps) {
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
 
@@ -37,7 +48,7 @@ export function Screen({ title, subtitle, headerRight, scroll = true, children, 
 
   const contentStyle = [
     styles.content,
-    { paddingTop: insets.top + spacing.lg, paddingBottom: insets.bottom + spacing['2xl'] },
+    { paddingTop: (nativeHeader ? 0 : insets.top) + spacing.lg, paddingBottom: insets.bottom + spacing['2xl'] },
     contentContainerStyle,
   ];
 

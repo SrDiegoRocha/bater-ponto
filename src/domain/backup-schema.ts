@@ -1,0 +1,176 @@
+// Formato do arquivo de backup (PLANEJAMENTO.md §3.9). Versionado, validado antes de qualquer gravação.
+
+export const BACKUP_APP_ID = 'bater-ponto';
+export const BACKUP_SCHEMA_VERSION = 1;
+
+export type BackupWorkday = { id: string; refDate: string; status: 'open' | 'closed' | 'incomplete'; note: string | null };
+export type BackupPunch = {
+  id: string;
+  workdayId: string;
+  kind: 'in' | 'out';
+  at: number;
+  tz: string;
+  isDayStart: boolean;
+  isDayEnd: boolean;
+  originalAt: number | null;
+  source: 'live' | 'retro' | 'manual';
+};
+export type BackupDayOff = { date: string; kind: 'folga' | 'ferias' | 'atestado' | 'feriado'; note: string | null };
+export type BackupHolidayOverride = {
+  id: string;
+  kind: 'custom' | 'disabled';
+  date: string | null;
+  monthDay: string | null;
+  year: number | null;
+  name: string | null;
+  holidayKey: string | null;
+};
+
+export type BackupData = {
+  workdays: BackupWorkday[];
+  punches: BackupPunch[];
+  dayOffs: BackupDayOff[];
+  holidayOverrides: BackupHolidayOverride[];
+  settings: Record<string, unknown>;
+};
+
+export type BackupFile = {
+  app: typeof BACKUP_APP_ID;
+  schemaVersion: number;
+  appVersion: string;
+  createdAt: number;
+  data: BackupData;
+};
+
+export type BackupPreview = {
+  workdays: number;
+  punches: number;
+  dayOffs: number;
+  firstDate: string | null;
+  lastDate: string | null;
+  createdAt: number;
+};
+
+export type ParseResult = { ok: true; file: BackupFile; preview: BackupPreview } | { ok: false; error: string };
+
+export function buildBackup(data: BackupData, appVersion: string, createdAt = Date.now()): BackupFile {
+  return { app: BACKUP_APP_ID, schemaVersion: BACKUP_SCHEMA_VERSION, appVersion, createdAt, data };
+}
+
+const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+const isObj = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
+const isStr = (v: unknown): v is string => typeof v === 'string';
+const isNum = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v);
+const isNullable = <T>(v: unknown, check: (x: unknown) => x is T) => v === null || check(v);
+
+function validWorkday(w: unknown): w is BackupWorkday {
+  return (
+    isObj(w) &&
+    isStr(w.id) &&
+    isStr(w.refDate) &&
+    DATE_RE.test(w.refDate) &&
+    ['open', 'closed', 'incomplete'].includes(w.status as string) &&
+    isNullable(w.note, isStr)
+  );
+}
+
+function validPunch(p: unknown): p is BackupPunch {
+  return (
+    isObj(p) &&
+    isStr(p.id) &&
+    isStr(p.workdayId) &&
+    (p.kind === 'in' || p.kind === 'out') &&
+    isNum(p.at) &&
+    isStr(p.tz) &&
+    typeof p.isDayStart === 'boolean' &&
+    typeof p.isDayEnd === 'boolean' &&
+    isNullable(p.originalAt, isNum) &&
+    ['live', 'retro', 'manual'].includes(p.source as string)
+  );
+}
+
+function validDayOff(d: unknown): d is BackupDayOff {
+  return (
+    isObj(d) &&
+    isStr(d.date) &&
+    DATE_RE.test(d.date) &&
+    ['folga', 'ferias', 'atestado', 'feriado'].includes(d.kind as string) &&
+    isNullable(d.note, isStr)
+  );
+}
+
+function validOverride(o: unknown): o is BackupHolidayOverride {
+  return (
+    isObj(o) &&
+    isStr(o.id) &&
+    (o.kind === 'custom' || o.kind === 'disabled') &&
+    isNullable(o.date, isStr) &&
+    isNullable(o.monthDay, isStr) &&
+    isNullable(o.year, isNum) &&
+    isNullable(o.name, isStr) &&
+    isNullable(o.holidayKey, isStr)
+  );
+}
+
+/** Migra arquivos de versões antigas para a atual (B6). Hoje só existe a v1. */
+function migrate(file: Record<string, unknown>): Record<string, unknown> {
+  return file;
+}
+
+export function parseBackup(text: string): ParseResult {
+  let raw: unknown;
+  try {
+    raw = JSON.parse(text);
+  } catch {
+    return { ok: false, error: 'O arquivo não é um backup válido (JSON corrompido).' };
+  }
+  if (!isObj(raw) || raw.app !== BACKUP_APP_ID) {
+    return { ok: false, error: 'Este arquivo não é um backup do Bater Ponto.' };
+  }
+  if (!isNum(raw.schemaVersion)) return { ok: false, error: 'Backup sem versão.' };
+  if (raw.schemaVersion > BACKUP_SCHEMA_VERSION) {
+    return { ok: false, error: 'Este backup foi feito por uma versão mais nova do app. Atualize o app e tente de novo.' };
+  }
+
+  const file = migrate(raw);
+  const data = file.data;
+  if (!isObj(data)) return { ok: false, error: 'Backup sem dados.' };
+
+  const { workdays, punches, dayOffs, holidayOverrides, settings } = data;
+  if (!Array.isArray(workdays) || !workdays.every(validWorkday)) return { ok: false, error: 'Jornadas inválidas no backup.' };
+  if (!Array.isArray(punches) || !punches.every(validPunch)) return { ok: false, error: 'Batidas inválidas no backup.' };
+  if (!Array.isArray(dayOffs) || !dayOffs.every(validDayOff)) return { ok: false, error: 'Folgas inválidas no backup.' };
+  if (!Array.isArray(holidayOverrides) || !holidayOverrides.every(validOverride)) {
+    return { ok: false, error: 'Feriados inválidos no backup.' };
+  }
+  if (!isObj(settings)) return { ok: false, error: 'Configurações inválidas no backup.' };
+
+  // Integridade: toda batida pertence a uma jornada do arquivo; ids únicos
+  const workdayIds = new Set(workdays.map((w) => w.id));
+  if (workdayIds.size !== workdays.length) return { ok: false, error: 'Jornadas duplicadas no backup.' };
+  if (new Set(punches.map((p) => p.id)).size !== punches.length) return { ok: false, error: 'Batidas duplicadas no backup.' };
+  if (!punches.every((p) => workdayIds.has(p.workdayId))) {
+    return { ok: false, error: 'Há batidas sem jornada no backup.' };
+  }
+
+  const dates = workdays.map((w) => w.refDate).sort();
+  const parsed: BackupFile = {
+    app: BACKUP_APP_ID,
+    schemaVersion: BACKUP_SCHEMA_VERSION,
+    appVersion: isStr(file.appVersion) ? file.appVersion : '?',
+    createdAt: isNum(file.createdAt) ? file.createdAt : 0,
+    data: { workdays, punches, dayOffs, holidayOverrides, settings },
+  };
+  return {
+    ok: true,
+    file: parsed,
+    preview: {
+      workdays: workdays.length,
+      punches: punches.length,
+      dayOffs: dayOffs.length,
+      firstDate: dates[0] ?? null,
+      lastDate: dates.at(-1) ?? null,
+      createdAt: parsed.createdAt,
+    },
+  };
+}

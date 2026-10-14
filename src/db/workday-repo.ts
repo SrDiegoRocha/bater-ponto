@@ -171,3 +171,140 @@ export async function deleteWorkday(db: SQLiteDatabase, workdayId: string): Prom
 export async function setWorkdayStatus(db: SQLiteDatabase, workdayId: string, status: WorkdayStatus): Promise<void> {
   await db.runAsync('UPDATE workday SET status = ?, updated_at = ? WHERE id = ?', status, Date.now(), workdayId);
 }
+
+/** Últimas jornadas, da mais recente para a mais antiga (tela Hoje) */
+export async function listRecentWorkdays(db: SQLiteDatabase, limit: number): Promise<WorkdayWithPunches[]> {
+  const rows = await db.getAllAsync<WorkdayRow>('SELECT * FROM workday ORDER BY ref_date DESC, created_at DESC LIMIT ?', limit);
+  return attachPunches(db, rows.map(toWorkday));
+}
+
+export async function countIncompleteWorkdays(db: SQLiteDatabase): Promise<number> {
+  const row = await db.getFirstAsync<{ n: number }>("SELECT COUNT(*) AS n FROM workday WHERE status = 'incomplete'");
+  return row?.n ?? 0;
+}
+
+/**
+ * Fim da jornada anterior e início da próxima (R4): uma batida não pode invadir outra jornada.
+ * `pivot` é o início desta jornada (ou o horário proposto, para uma jornada nova).
+ */
+export async function getNeighborBounds(
+  db: SQLiteDatabase,
+  pivot: number,
+  excludeWorkdayId: string | null,
+): Promise<{ previousWorkdayEnd: number | null; nextWorkdayStart: number | null }> {
+  const row = await db.getFirstAsync<{ prev_end: number | null; next_start: number | null }>(
+    `WITH w AS (SELECT workday_id, MIN(at) AS s, MAX(at) AS e FROM punch WHERE workday_id IS NOT ? GROUP BY workday_id)
+     SELECT (SELECT MAX(e) FROM w WHERE s <= ?) AS prev_end, (SELECT MIN(s) FROM w WHERE s > ?) AS next_start`,
+    excludeWorkdayId,
+    pivot,
+    pivot,
+  );
+  return { previousWorkdayEnd: row?.prev_end ?? null, nextWorkdayStart: row?.next_start ?? null };
+}
+
+// ---- Snapshots: base do "Desfazer" (R7, ED6) -------------------------------------------------
+
+export type WorkdaySnapshot = { workday: WorkdayRow & { created_at: number; updated_at: number }; punches: (PunchRow & { created_at: number; updated_at: number })[] };
+
+export async function snapshotWorkday(db: SQLiteDatabase, workdayId: string): Promise<WorkdaySnapshot | null> {
+  const workday = await db.getFirstAsync<WorkdaySnapshot['workday']>('SELECT * FROM workday WHERE id = ?', workdayId);
+  if (!workday) return null;
+  const punches = await db.getAllAsync<WorkdaySnapshot['punches'][number]>('SELECT * FROM punch WHERE workday_id = ?', workdayId);
+  return { workday, punches };
+}
+
+/** Volta a jornada exatamente ao snapshot (null = a jornada não existia) */
+export async function restoreWorkday(db: SQLiteDatabase, workdayId: string, snapshot: WorkdaySnapshot | null): Promise<void> {
+  await db.withTransactionAsync(async () => {
+    await db.runAsync('DELETE FROM workday WHERE id = ?', workdayId);
+    if (!snapshot) return;
+    const w = snapshot.workday;
+    await db.runAsync(
+      'INSERT INTO workday (id, ref_date, status, note, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)',
+      w.id, w.ref_date, w.status, w.note, w.created_at, w.updated_at,
+    );
+    for (const p of snapshot.punches) {
+      await db.runAsync(
+        `INSERT INTO punch (id, workday_id, kind, at, tz, is_day_start, is_day_end, original_at, source, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        p.id, p.workday_id, p.kind, p.at, p.tz, p.is_day_start, p.is_day_end, p.original_at, p.source, p.created_at, p.updated_at,
+      );
+    }
+  });
+}
+
+/** Cria uma jornada já com as batidas informadas (jornada manual, R11) */
+export async function createWorkdayWithPunches(
+  db: SQLiteDatabase,
+  punches: { kind: PunchKind; at: number }[],
+  { closed, source }: { closed: boolean; source: PunchSource },
+): Promise<string> {
+  const id = randomUUID();
+  const now = Date.now();
+  const sorted = [...punches].sort((a, b) => a.at - b.at);
+  await db.withTransactionAsync(async () => {
+    await db.runAsync(
+      'INSERT INTO workday (id, ref_date, status, note, created_at, updated_at) VALUES (?, ?, ?, NULL, ?, ?)',
+      id, toDateKey(sorted[0].at), closed ? 'closed' : 'open', now, now,
+    );
+    for (const [i, p] of sorted.entries()) {
+      await insertPunch(db, {
+        workdayId: id,
+        kind: p.kind,
+        at: p.at,
+        isDayStart: i === 0,
+        isDayEnd: closed && i === sorted.length - 1,
+        source,
+      });
+    }
+  });
+  await normalizeWorkday(db, id);
+  return id;
+}
+
+export async function setWorkdayNote(db: SQLiteDatabase, workdayId: string, note: string | null): Promise<void> {
+  await db.runAsync('UPDATE workday SET note = ?, updated_at = ? WHERE id = ?', note, Date.now(), workdayId);
+}
+
+/**
+ * Recalcula marcas de início/fim e o status depois de qualquer edição:
+ * - a primeira batida é sempre o início do dia (e define a data de referência);
+ * - jornada encerrada continua encerrada se a última batida ainda for SAÍDA;
+ * - sequência inválida → 'incomplete'; sem fim → 'open' se for a mais recente, senão 'incomplete';
+ * - sem batidas → a jornada é removida.
+ */
+export async function normalizeWorkday(db: SQLiteDatabase, workdayId: string): Promise<void> {
+  const workday = await getWorkday(db, workdayId);
+  if (!workday) return;
+  const punches = workday.punches;
+  if (punches.length === 0) {
+    await deleteWorkday(db, workdayId);
+    return;
+  }
+
+  const first = punches[0];
+  const last = punches[punches.length - 1];
+  const alternates = punches.every((p, i) => p.kind === (i % 2 === 0 ? 'in' : 'out'));
+  const wasEnded = workday.status === 'closed' || punches.some((p) => p.isDayEnd);
+  const ended = alternates && wasEnded && last.kind === 'out';
+
+  const later = await db.getFirstAsync<{ n: number }>(
+    `SELECT COUNT(*) AS n FROM workday w WHERE w.id != ? AND (SELECT MIN(at) FROM punch WHERE workday_id = w.id) > ?`,
+    workdayId,
+    first.at,
+  );
+  const isLatest = (later?.n ?? 0) === 0;
+  const status: WorkdayStatus = !alternates ? 'incomplete' : ended ? 'closed' : isLatest ? 'open' : 'incomplete';
+
+  const now = Date.now();
+  await db.withTransactionAsync(async () => {
+    await db.runAsync(
+      'UPDATE punch SET is_day_start = (id = ?), is_day_end = (id = ? AND ?), updated_at = ? WHERE workday_id = ?',
+      first.id, last.id, ended ? 1 : 0, now, workdayId,
+    );
+    await db.runAsync(
+      'UPDATE workday SET status = ?, ref_date = ?, updated_at = ? WHERE id = ?',
+      status, toDateKey(first.at), now, workdayId,
+    );
+  });
+}

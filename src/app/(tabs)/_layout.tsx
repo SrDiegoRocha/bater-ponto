@@ -1,9 +1,14 @@
+import { Redirect } from 'expo-router';
 import { NativeTabs } from 'expo-router/unstable-native-tabs';
 
+import { useSettings } from '@/stores/settings-store';
 import { fonts, useTheme } from '@/theme';
 
 export default function TabsLayout() {
   const { colors } = useTheme();
+  const { onboardingDone } = useSettings();
+
+  if (!onboardingDone) return <Redirect href="/onboarding" />;
 
   return (
     <NativeTabs

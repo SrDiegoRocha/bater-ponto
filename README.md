@@ -73,16 +73,22 @@ O usuário marca explicitamente o **início do dia** e o **fim do dia**, então 
 | Fase | Conteúdo | Status |
 |---|---|---|
 | **0 · Fundação** | Identidade visual e ativos, configuração Android, Expo Router, design system, SQLite + migrações, regras de domínio com testes | ✅ Concluída |
-| **1 · MVP** | Onboarding, tela Hoje funcional, histórico, edição de horários, folgas, feriados, resumo, calculadora simples, backup | ⏳ Próxima |
-| **2 · Premium** | Animações completas, gráficos, modo CLT, exportação em PDF, ajustes de feriados | ⏳ |
+| **1 · MVP** | Onboarding, tela Hoje funcional, histórico, edição de horários, folgas, feriados, resumo, calculadora simples, backup | ✅ Concluída |
+| **2 · Premium** | Animações completas, gráficos, modo CLT, exportação em PDF, ajustes de feriados | ⏳ Próxima |
 | **3 · Extras** | Meta por dia da semana, bloqueio por biometria, build com EAS | ⏳ |
 
 O que já existe hoje:
 
-- ✅ Navegação com abas nativas (Hoje · Histórico · Resumo · Salário), tema claro/escuro.
-- ✅ Tela Hoje em versão visual (anel de progresso, status, período atual). Bater o ponto chega na fase 1.
-- ✅ Banco SQLite com esquema completo, migrações versionadas e repositórios.
-- ✅ Motor de regras puro (sem React) com **100 testes**: períodos, jornadas, máquina de estados, validações, limites de edição, feriados, saldo, horas noturnas, salário e formatação.
+- ✅ **Onboarding** em 4 passos: período, meta diária, valor da hora e opção de restaurar um backup.
+- ✅ **Hoje**: botão de estado (Iniciar dia → Pausar → Voltar → Encerrar), cronômetro ao vivo, anel da meta, linha do tempo tocável, toast com **Ajustar** e **Desfazer**, toque longo para bater com outro horário, avisos de jornada incompleta/aberta há muito tempo, folga e feriado do dia, descanso desde a última jornada.
+- ✅ **Editor de horário**: −5/−1/+1/+5 min (segurar repete), relógio e calendário nativos, limites visíveis, prévia ao vivo dos totais, voltar ao original, excluir batida.
+- ✅ **Histórico**: calendário do período com cores por estado e feriados, seleção múltipla para folgas, lista de jornadas com mini-timeline, cadastro manual de jornada.
+- ✅ **Detalhe da jornada**: totais (trabalhado, intervalo, amplitude, noturno), timeline editável, adicionar turno ou batida, interjornada antes/depois, observação, excluir com desfazer.
+- ✅ **Folgas** (folga, férias, atestado, feriado) em um ou vários dias, com proteção para dias que já têm jornada.
+- ✅ **Resumo**: horas, intervalos, dias, folgas, banco de horas, salário estimado e 11 indicadores de detalhe.
+- ✅ **Salário**: valor da hora e recibo estimado (modo simples).
+- ✅ **Ajustes**: período, meta diária, valor da hora, aparência (sistema/claro/escuro), backup, restauração e apagar tudo.
+- ✅ **136 testes**: regras puras + casos de uso rodando contra SQLite real.
 - ✅ Logo, ícone adaptativo/monocromático, splash claro/escuro, favicon e ícone da Play Store gerados por script.
 
 ---
@@ -249,8 +255,10 @@ Wordmark: `bater ponto.` em Inter Bold, minúsculas, com o **ponto final sempre 
 | IDs | `expo-crypto` (`randomUUID`) |
 | Testes | `jest` + `jest-expo` |
 | Ativos da marca | `@resvg/resvg-js` (SVG → PNG) |
+| Seletores de data/hora | `@expo/ui` (DateTimePicker nativo do Android) |
+| Backup | `expo-file-system` + `expo-sharing` + `expo-document-picker` |
 
-Previstos para as próximas fases: `@expo/ui` (sheets, pickers, switches nativos), `expo-print` + `expo-sharing` (PDF), `expo-file-system` + `expo-document-picker` (backup), `expo-local-authentication` (biometria).
+Previstos para as próximas fases: `expo-print` (PDF) e `expo-local-authentication` (biometria).
 
 ---
 
@@ -288,9 +296,17 @@ Previstos para as próximas fases: `@expo/ui` (sheets, pickers, switches nativos
 │   ├── app/                   # Somente rotas (Expo Router)
 │   │   ├── _layout.tsx        # Providers: gestos, SQLite+migrações, tema, splash, fontes
 │   │   └── (tabs)/            # Hoje · Histórico · Resumo · Salário (NativeTabs)
-│   ├── screens/               # Corpo das telas (rotas só renderizam)
+│   ├── screens/               # Corpo das telas (rotas só renderizam): today/, history, summary, salary,
+│   │                          #   workday-detail, punch-editor, retro-punch, day-off-sheet, settings, onboarding…
+│   ├── services/              # Casos de uso: bater ponto, editar, desfazer, folgas, backup
+│   ├── hooks/                 # useDbQuery (recarrega a cada escrita), useNow, usePeriodStats
 │   ├── components/
-│   │   ├── ui/                # Design system: Text, Button, Card, StatusPill, ProgressRing, Screen, List…
+│   │   ├── ui/                # Design system: Text, Button, Card, StatusPill, ProgressRing, Screen, List,
+│   │   │                      #   Banner, StatCard, ChoiceChips, Stepper, MoneyInput, ToastHost…
+│   │   ├── time/              # TimeAdjuster (editor ±1/±5) e TimeField (cadastro manual)
+│   │   ├── workday/           # Timeline vertical e mini-timeline
+│   │   ├── calendar/          # Calendário do período
+│   │   ├── period/            # Seletor de período
 │   │   └── brand/             # BrandSymbol, BrandLockup
 │   ├── domain/                # Regras puras + testes
 │   │   ├── period.ts          # Períodos 21→20, dia 29–31, rótulos
@@ -301,11 +317,15 @@ Previstos para as próximas fases: `@expo/ui` (sheets, pickers, switches nativos
 │   │   ├── balance.ts         # Meta diária e saldo
 │   │   ├── night-hours.ts     # Horas entre 22h e 5h
 │   │   ├── salary.ts          # Salário simples
+│   │   ├── stats.ts           # Indicadores do período e status de cada dia
+│   │   ├── time-of-day.ts     # Horário de relógio → instante (vira +1 após a meia-noite)
+│   │   ├── backup-schema.ts   # Formato versionado e validação do backup
 │   │   └── time.ts, types.ts
 │   ├── db/
 │   │   ├── migrations.ts      # Esquema + migrações versionadas
 │   │   └── *-repo.ts          # workday, day-off, holiday, settings
-│   ├── stores/                # zustand (configurações em memória)
+│   ├── stores/                # zustand: configurações, revisão dos dados, período selecionado, toasts
+│   ├── test/                  # Adaptador SQLite em memória para testes
 │   ├── theme/                 # palette, colors, typography, metrics, motion, ThemeProvider
 │   └── lib/                   # Formatação (duração, hora, data pt-BR, dinheiro)
 ├── PLANEJAMENTO.md            # Planejamento completo do produto
@@ -369,7 +389,7 @@ As pastas `android/` e `ios/` **não** são versionadas: são geradas pelo Expo 
 npm test
 ```
 
-8 suítes, 100 testes, cobrindo:
+13 suítes, 136 testes, cobrindo:
 
 - **Jornadas**: os exemplos A e B, jornada aberta até "agora", batidas fora de ordem, sequência inconsistente.
 - **Períodos**: 21→20, o dia 21 abrindo o próximo período, virada de ano, dia de início 31 em fevereiro (inclusive bissexto), sem buracos nem sobreposição.
@@ -379,6 +399,11 @@ npm test
 - **Cálculos**: meta diária e por dia da semana, saldo, horas noturnas (inclusive em várias janelas), salário simples.
 - **Formatação**: durações, relógio, dinheiro em R$, datas em pt-BR.
 - **Tema**: contraste WCAG AA de todos os tokens de texto nos dois temas.
+- **Indicadores do período**: totais, folgas por tipo, feriado trabalhado, banco de horas, horas noturnas, interjornada, médias de início/fim.
+- **Backup**: ida e volta do arquivo, arquivos corrompidos, de outro app, de versão mais nova e com referências quebradas.
+- **Casos de uso com banco real** ([`src/services/punch-service.test.ts`](src/services/punch-service.test.ts)): o exemplo B batido ao vivo, encerrar no intervalo, horários inválidos, desfazer, edição 15:45 → 15:43 com voltar ao original, limites entre jornadas, troca de data de referência, jornada incompleta e correção, jornada manual que passa da meia-noite, folga sobre jornada (com desfazer) e exportar/importar backup.
+
+Os testes de banco usam um adaptador ([`src/test/memory-db.ts`](src/test/memory-db.ts)) que implementa a API do `expo-sqlite` sobre o `node:sqlite`, com o mesmo esquema e as mesmas migrações do app.
 
 Os testes rodam com o fuso fixo em `America/Sao_Paulo` ([`jest.global-setup.js`](jest.global-setup.js)), já que regras de meia-noite e horas noturnas dependem do horário local.
 
@@ -415,7 +440,7 @@ Para mudar algo na marca, edite o script (ou os SVGs em `assets/brand/`) e rode 
 
 ## Roadmap
 
-**Fase 1 · MVP (uso diário)**
+**Fase 1 · MVP (uso diário)** ✅
 Onboarding · Tela Hoje funcional (botão de estado, cronômetro, timeline) · Histórico (lista + calendário com feriados) · Detalhe e edição de jornada (editor de horário) · Folgas (4 tipos) · Feriados automáticos · Período e meta diária · Resumo com banco de horas · Calculadora simples · Backup e restauração.
 
 **Fase 2 · Premium**

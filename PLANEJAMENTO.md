@@ -789,7 +789,7 @@ scripts/generate-brand-assets.mjs → gera os PNGs de ícone/splash/favicon a pa
 **Fluxo**: Tela → hook da feature → repositório (SQLite) → dados brutos → `domain/` calcula → componente exibe.
 A camada `domain/` recebe dados simples e devolve resultados. Testes unitários cobrem os exemplos A e B, a virada de meia-noite, a borda de período, as interjornadas, as horas noturnas, o salário, as datas da Páscoa/feriados de vários anos e o ciclo backup → restauração.
 
-**Performance**: consultas por intervalo de datas indexadas. Cálculos memoizados por período. Cronômetro com `useFrameCallback`/shared value (sem re-render de React a cada segundo). Listas com `FlashList` se o histórico crescer.
+**Performance**: consultas por intervalo de datas indexadas. Cálculos memoizados por período. Cronômetro isolado num componente próprio (só ele re-renderiza a cada segundo). Listas com `FlashList` se o histórico crescer.
 
 ---
 
@@ -844,7 +844,15 @@ A camada `domain/` recebe dados simples e devolve resultados. Testes unitários 
 **Fase 0: Fundação** ✅ concluída em 14/10/2026
 **Identidade visual**: SVGs mestres do logo, script de geração e todos os ativos (ícone adaptativo e monocromático, splash claro/escuro, favicon) · `app.json` (nome "Bater Ponto", Android, `userInterfaceStyle: "automatic"`, edge-to-edge, splash, fontes Inter embutidas) · Expo Router · tema claro/escuro e tokens (com teste automático de contraste) · componentes UI base, SQLite + migrações, camada `domain/` com testes (incluindo feriados e saldo).
 
-**Fase 1: MVP (uso diário)**
+**Fase 1: MVP (uso diário)** ✅ concluída em 14/10/2026
+
+> Notas de implementação da fase 1:
+> - Início e fim do dia são sempre a **primeira e a última batida** da jornada (normalizadas a cada edição). "Marcar outra batida como início/fim" (que dividiria uma jornada) ficou para depois.
+> - Seleção múltipla no calendário: **segurar um dia** entra no modo de seleção e os toques seguintes marcam/desmarcam (sem arrastar).
+> - Swipe nas linhas do histórico ficou para a fase 2. Editar e excluir estão no detalhe da jornada.
+> - O cronômetro re-renderiza **só o próprio componente** a cada segundo. O resto da tela atualiza por minuto.
+> - Cadastro manual usa horários de relógio: um horário menor que o anterior vira automaticamente o dia seguinte (+1).
+> - Os casos de uso de banco (bater, editar, desfazer, folgas, backup) são testados contra SQLite real (`node:sqlite`).
 Onboarding · HOJE (botão, estados, timeline, cronômetro) · Histórico (lista + calendário com feriados) · Detalhe/edição de jornada · Folgas (4 tipos) · Feriados nacionais automáticos · Configuração de período e meta diária · Resumo com os cards principais + banco de horas · Calculadora modo simples · **Backup e restauração** (proteger os dados desde o 1º dia).
 
 **Fase 2: Premium**
