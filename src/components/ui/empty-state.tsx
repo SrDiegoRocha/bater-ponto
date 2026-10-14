@@ -1,17 +1,24 @@
 import { StyleSheet, View } from 'react-native';
 
-import { BrandSymbol } from '@/components/brand/brand-mark';
-import { spacing, useTheme } from '@/theme';
+import { Illustration, type IllustrationName } from '@/components/brand/illustrations';
+import { spacing } from '@/theme';
 
 import { Text } from './text';
 
-// Estado vazio com a geometria do logo (§6.7). As ilustrações dedicadas entram na fase 2.
+// Estado vazio com ilustração na geometria do logo (§6.7).
 
-export function EmptyState({ title, description }: { title: string; description?: string }) {
-  const { colors } = useTheme();
+export function EmptyState({
+  title,
+  description,
+  illustration = 'empty',
+}: {
+  title: string;
+  description?: string;
+  illustration?: IllustrationName;
+}) {
   return (
     <View style={styles.container}>
-      <BrandSymbol size={72} color={colors.border} />
+      <Illustration name={illustration} size={96} />
       <Text variant="headline" align="center">
         {title}
       </Text>

@@ -1,5 +1,6 @@
 import { StyleSheet, View } from 'react-native';
 
+import { useCountUp } from '@/hooks/use-count-up';
 import { spacing, type ColorTokens } from '@/theme';
 
 import { Card } from './card';
@@ -7,16 +8,24 @@ import { Icon, type IconName } from './icon';
 import { PressableScale } from './pressable-scale';
 import { Text } from './text';
 
+export type StatDelta = { text: string; direction: 'up' | 'down' | 'flat' };
+
 export type StatCardProps = {
   label: string;
-  value: string;
+  /** Texto fixo, ou… */
+  value?: string;
+  /** …número animado (count-up) com seu formatador */
+  numeric?: number;
+  format?: (n: number) => string;
   hint?: string;
   icon?: IconName;
   color?: keyof ColorTokens;
+  /** Comparação com o período anterior */
+  delta?: StatDelta;
   onPress?: () => void;
 };
 
-export function StatCard({ label, value, hint, icon, color = 'text', onPress }: StatCardProps) {
+export function StatCard({ label, value, numeric, format, hint, icon, color = 'text', delta, onPress }: StatCardProps) {
   const card = (
     <Card style={styles.card}>
       <View style={styles.header}>
@@ -25,9 +34,25 @@ export function StatCard({ label, value, hint, icon, color = 'text', onPress }: 
           {label}
         </Text>
       </View>
-      <Text variant="title2" color={color} tabular numberOfLines={1} adjustsFontSizeToFit>
-        {value}
-      </Text>
+      {numeric !== undefined && format ? (
+        <AnimatedValue value={numeric} format={format} color={color} />
+      ) : (
+        <Text variant="title2" color={color} tabular numberOfLines={1} adjustsFontSizeToFit>
+          {value}
+        </Text>
+      )}
+      {delta ? (
+        <View style={styles.delta}>
+          <Icon
+            name={delta.direction === 'up' ? 'arrow_upward' : delta.direction === 'down' ? 'arrow_downward' : 'remove'}
+            size={20}
+            color="textMuted"
+          />
+          <Text variant="caption" color="textMuted" tabular numberOfLines={1}>
+            {delta.text}
+          </Text>
+        </View>
+      ) : null}
       {hint ? (
         <Text variant="caption" color="textMuted" numberOfLines={2}>
           {hint}
@@ -43,6 +68,22 @@ export function StatCard({ label, value, hint, icon, color = 'text', onPress }: 
   );
 }
 
+function AnimatedValue({ value, format, color }: { value: number; format: (n: number) => string; color: keyof ColorTokens }) {
+  const shown = useCountUp(value);
+  return (
+    <Text
+      variant="title2"
+      color={color}
+      tabular
+      numberOfLines={1}
+      adjustsFontSizeToFit
+      accessibilityLabel={format(value)}
+    >
+      {format(shown)}
+    </Text>
+  );
+}
+
 /** Grade de 2 colunas para StatCards */
 export function StatGrid({ children }: { children: React.ReactNode }) {
   return <View style={styles.grid}>{children}</View>;
@@ -54,4 +95,5 @@ const styles = StyleSheet.create({
   card: { gap: spacing.xs, minHeight: 104 },
   header: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
   label: { flex: 1 },
+  delta: { flexDirection: 'row', alignItems: 'center', gap: 2 },
 });

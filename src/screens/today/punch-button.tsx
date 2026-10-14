@@ -1,11 +1,12 @@
 import * as Haptics from 'expo-haptics';
+import { useEffect } from 'react';
 import { StyleSheet, View } from 'react-native';
-import Animated, { FadeIn, FadeOut } from 'react-native-reanimated';
+import Animated, { FadeIn, FadeOut, interpolateColor, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 
 import { Icon, Text, type IconName } from '@/components/ui';
 import { PressableScale } from '@/components/ui/pressable-scale';
 import type { DayState } from '@/domain/state-machine';
-import { radius, spacing, useTheme, type ColorTokens } from '@/theme';
+import { radius, spacing, timing, useTheme, type ColorTokens } from '@/theme';
 
 // O botão principal (§3.1 / §7): muda de cor e rótulo conforme o estado. Toque longo = outro horário (R8).
 
@@ -26,6 +27,17 @@ export function PunchButton({ state, onPress, onLongPress, disabled }: Props) {
   const { colors } = useTheme();
   const c = config[state];
 
+  // Morph de cor entre trabalho (verde) e pausa (âmbar) — §7
+  const isBreakColor = useSharedValue(c.color === 'break' ? 1 : 0);
+  useEffect(() => {
+    isBreakColor.set(withTiming(c.color === 'break' ? 1 : 0, timing.base));
+  }, [c.color, isBreakColor]);
+  const work = colors.work;
+  const pause = colors.break;
+  const colorStyle = useAnimatedStyle(() => ({
+    backgroundColor: interpolateColor(isBreakColor.value, [0, 1], [work, pause]),
+  }));
+
   return (
     <PressableScale
       accessibilityRole="button"
@@ -42,7 +54,7 @@ export function PunchButton({ state, onPress, onLongPress, disabled }: Props) {
       }}
       delayLongPress={450}
       android_ripple={{ color: 'rgba(0,0,0,0.12)', foreground: true }}
-      style={[styles.button, { backgroundColor: colors[c.color], opacity: disabled ? 0.6 : 1 }]}
+      style={[styles.button, colorStyle, { opacity: disabled ? 0.6 : 1 }]}
     >
       {/* key = estado: o rótulo troca com crossfade */}
       <Animated.View key={state} entering={FadeIn.duration(200)} exiting={FadeOut.duration(120)} style={styles.content}>

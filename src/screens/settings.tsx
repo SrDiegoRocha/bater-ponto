@@ -6,12 +6,14 @@ import { ptBR } from 'date-fns/locale';
 import { StyleSheet, View } from 'react-native';
 
 import { BrandLockup } from '@/components/brand/brand-mark';
-import { Button, Card, ChoiceChips, Divider, ListRow, Screen, SectionHeader, Stepper, Text } from '@/components/ui';
+import { Illustration } from '@/components/brand/illustrations';
+import { Button, Card, ChoiceChips, Divider, ListRow, Screen, SectionHeader, Stepper, SwitchRow, Text } from '@/components/ui';
 import { MoneyInput } from '@/components/ui/money-input';
 import { useNow } from '@/hooks/use-now';
 import { getPeriodContaining, periodLabel, periodRangeLabel } from '@/domain/period';
 import { MINUTE, toDateKey } from '@/domain/time';
-import type { ThemePreference } from '@/db/settings-repo';
+import type { Settings, ThemePreference } from '@/db/settings-repo';
+import { TAX_YEAR } from '@/domain/tax-2026';
 import { formatDuration, formatMoney } from '@/lib/format';
 import { toCents } from '@/domain/salary';
 import { backupFlow, eraseFlow, restoreFlow } from '@/services/backup-flows';
@@ -31,7 +33,9 @@ export function SettingsHome() {
         <Divider inset={36} />
         <ListRow title="Jornada" subtitle="Meta diária" icon="schedule" value={formatDuration(s.dailyGoal.defaultMinutes * MINUTE)} onPress={() => router.push('/ajustes/jornada')} />
         <Divider inset={36} />
-        <ListRow title="Salário" subtitle="Valor da hora" icon="payments" value={s.hourlyRate > 0 ? formatMoney(toCents(s.hourlyRate)) : '—'} onPress={() => router.push('/ajustes/salario')} />
+        <ListRow title="Salário" subtitle={s.salaryMode === 'clt' ? 'Valor da hora · modo CLT' : 'Valor da hora'} icon="payments" value={s.hourlyRate > 0 ? formatMoney(toCents(s.hourlyRate)) : '—'} onPress={() => router.push('/ajustes/salario')} />
+        <Divider inset={36} />
+        <ListRow title="Feriados" subtitle={s.optionalHolidays ? 'Nacionais + facultativos' : 'Nacionais automáticos'} icon="celebration" onPress={() => router.push('/ajustes/feriados')} />
         <Divider inset={36} />
         <ListRow title="Aparência" icon="contrast" value={themeLabel[s.theme]} onPress={() => router.push('/ajustes/aparencia')} />
         <Divider inset={36} />
@@ -108,19 +112,83 @@ export function WorkdaySettings() {
 
 export function SalarySettings() {
   const db = useSQLiteContext();
-  const { hourlyRate } = useSettings();
+  const s = useSettings();
   const update = useSettingsStore((st) => st.update);
+  const set = (patch: Partial<Settings>) => update(db, patch);
+  const pct = (v: number) => `+${v}%`;
+
   return (
     <Screen nativeHeader keyboardShouldPersistTaps="handled">
       <Card style={styles.gap}>
         <Text variant="body" color="textMuted">
           Valor da sua hora
         </Text>
-        <MoneyInput label="Valor da hora" value={hourlyRate} onCommit={(v) => update(db, { hourlyRate: v })} />
+        <MoneyInput label="Valor da hora" value={s.hourlyRate} onCommit={(v) => set({ hourlyRate: v })} />
+        <ChoiceChips
+          options={[
+            { value: 'simple', label: 'Simples', icon: 'calculate' },
+            { value: 'clt', label: 'CLT', icon: 'gavel' },
+          ]}
+          value={s.salaryMode}
+          onChange={(v) => set({ salaryMode: v })}
+        />
       </Card>
-      <Text variant="caption" color="textMuted">
-        Usado para estimar o salário bruto do período (horas trabalhadas × valor da hora). Intervalos não contam.
-      </Text>
+
+      {s.salaryMode === 'clt' ? (
+        <>
+          <SectionHeader title="Horas extras" />
+          <Card style={styles.gap}>
+            <Text variant="body" color="textMuted">
+              Hora extra comum (acima da meta do dia)
+            </Text>
+            <Stepper label="Hora extra comum" value={s.overtimePct} min={0} max={200} step={5} format={pct} onChange={(v) => set({ overtimePct: v })} />
+            <Text variant="body" color="textMuted">
+              Hora extra em feriado ou folga
+            </Text>
+            <Stepper label="Hora extra em feriado" value={s.holidayOvertimePct} min={0} max={200} step={5} format={pct} onChange={(v) => set({ holidayOvertimePct: v })} />
+            <SwitchRow
+              title="Domingo conta como feriado"
+              subtitle="Horas trabalhadas no domingo pagas como extra de feriado"
+              value={s.sundayDouble}
+              onValueChange={(v) => set({ sundayDouble: v })}
+            />
+            <SwitchRow
+              title="DSR sobre horas extras"
+              subtitle="Reflexo das extras no descanso semanal remunerado"
+              value={s.dsrOnExtras}
+              onValueChange={(v) => set({ dsrOnExtras: v })}
+            />
+          </Card>
+
+          <SectionHeader title="Adicional noturno (22h–5h)" />
+          <Card style={styles.gap}>
+            <Stepper label="Adicional noturno" value={s.nightPct} min={0} max={100} step={5} format={pct} onChange={(v) => set({ nightPct: v })} />
+            <SwitchRow
+              title="Hora noturna reduzida"
+              subtitle="Cada 52min30s noturnos contam como 1 hora"
+              value={s.nightReduced}
+              onValueChange={(v) => set({ nightReduced: v })}
+            />
+          </Card>
+
+          <SectionHeader title="Descontos" />
+          <Card style={styles.gap}>
+            <Text variant="body" color="textMuted">
+              Dependentes no Imposto de Renda
+            </Text>
+            <Stepper label="Dependentes" value={s.dependents} min={0} max={10} onChange={(v) => set({ dependents: v })} />
+          </Card>
+          <Text variant="caption" color="textMuted">
+            INSS e IRRF calculados pelas tabelas de {TAX_YEAR}, incluindo a isenção de IR até R$ 5.000. Os valores são uma
+            estimativa: convenções coletivas, benefícios e outros descontos não entram.
+          </Text>
+        </>
+      ) : (
+        <Text variant="caption" color="textMuted">
+          Modo simples: horas trabalhadas × valor da hora. Intervalos não contam. Ative o modo CLT para horas extras, adicional
+          noturno, DSR e descontos.
+        </Text>
+      )}
     </Screen>
   );
 }
@@ -153,6 +221,7 @@ export function DataSettings() {
   return (
     <Screen nativeHeader>
       <Card style={styles.gap}>
+        <Illustration name={lastBackupAt ? 'done' : 'empty'} size={64} />
         <Text variant="headline">
           {lastBackupAt
             ? `Último backup ${formatDistanceToNow(lastBackupAt, { locale: ptBR, addSuffix: true })}`
@@ -164,6 +233,9 @@ export function DataSettings() {
         </Text>
         <Button label="Fazer backup agora" icon="cloud_upload" block onPress={() => backupFlow(db)} />
       </Card>
+
+      <SectionHeader title="Exportar" />
+      <Button label="Exportar espelho de ponto (PDF)" icon="picture_as_pdf" variant="secondary" block onPress={() => router.push('/exportar')} />
 
       <SectionHeader title="Restaurar" />
       <Card style={styles.gap}>

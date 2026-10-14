@@ -74,8 +74,8 @@ O usuário marca explicitamente o **início do dia** e o **fim do dia**, então 
 |---|---|---|
 | **0 · Fundação** | Identidade visual e ativos, configuração Android, Expo Router, design system, SQLite + migrações, regras de domínio com testes | ✅ Concluída |
 | **1 · MVP** | Onboarding, tela Hoje funcional, histórico, edição de horários, folgas, feriados, resumo, calculadora simples, backup | ✅ Concluída |
-| **2 · Premium** | Animações completas, gráficos, modo CLT, exportação em PDF, ajustes de feriados | ⏳ Próxima |
-| **3 · Extras** | Meta por dia da semana, bloqueio por biometria, build com EAS | ⏳ |
+| **2 · Premium** | Animações, gráficos, modo CLT, simulador, exportação em PDF, ajustes de feriados | ✅ Concluída |
+| **3 · Extras** | Meta por dia da semana, bloqueio por biometria, build com EAS | ⏳ Próxima |
 
 O que já existe hoje:
 
@@ -85,10 +85,14 @@ O que já existe hoje:
 - ✅ **Histórico**: calendário do período com cores por estado e feriados, seleção múltipla para folgas, lista de jornadas com mini-timeline, cadastro manual de jornada.
 - ✅ **Detalhe da jornada**: totais (trabalhado, intervalo, amplitude, noturno), timeline editável, adicionar turno ou batida, interjornada antes/depois, observação, excluir com desfazer.
 - ✅ **Folgas** (folga, férias, atestado, feriado) em um ou vários dias, com proteção para dias que já têm jornada.
-- ✅ **Resumo**: horas, intervalos, dias, folgas, banco de horas, salário estimado e 11 indicadores de detalhe.
-- ✅ **Salário**: valor da hora e recibo estimado (modo simples).
+- ✅ **Resumo**: cards com números animados e comparação com o período anterior, gráfico de horas por dia (com a meta) e por dia da semana, 11 indicadores de detalhe e botão de exportar PDF.
+- ✅ **Salário**: modo simples ou **modo CLT** (extras 50%/100%, domingo, adicional noturno com hora reduzida, DSR, INSS e IRRF 2026 com a isenção até R$ 5.000), recibo detalhado e simulador "E se?" com sliders.
+- ✅ **Espelho de ponto em PDF**: tabela dia a dia (batidas, +1, horários editados, folgas, feriados, saldo), totais e salário opcional, compartilhado pelo Android.
+- ✅ **Feriados**: ativar/desativar por ano ou para sempre, pontos facultativos e feriados próprios (recorrentes ou não).
+- ✅ **Histórico**: deslizar para excluir (com desfazer) e entrada animada da lista.
+- ✅ **Ilustrações** dos estados vazios e **imagem de destaque** da Play Store.
 - ✅ **Ajustes**: período, meta diária, valor da hora, aparência (sistema/claro/escuro), backup, restauração e apagar tudo.
-- ✅ **136 testes**: regras puras + casos de uso rodando contra SQLite real.
+- ✅ **150 testes**: regras puras, cálculos CLT/impostos, PDF e casos de uso rodando contra SQLite real.
 - ✅ Logo, ícone adaptativo/monocromático, splash claro/escuro, favicon e ícone da Play Store gerados por script.
 
 ---
@@ -258,7 +262,10 @@ Wordmark: `bater ponto.` em Inter Bold, minúsculas, com o **ponto final sempre 
 | Seletores de data/hora | `@expo/ui` (DateTimePicker nativo do Android) |
 | Backup | `expo-file-system` + `expo-sharing` + `expo-document-picker` |
 
-Previstos para as próximas fases: `expo-print` (PDF) e `expo-local-authentication` (biometria).
+| PDF | `expo-print` (HTML → PDF) |
+| Switch e Slider nativos | `@expo/ui` (Jetpack Compose) |
+
+Previsto para a próxima fase: `expo-local-authentication` (biometria).
 
 ---
 
@@ -307,6 +314,7 @@ Previstos para as próximas fases: `expo-print` (PDF) e `expo-local-authenticati
 │   │   ├── workday/           # Timeline vertical e mini-timeline
 │   │   ├── calendar/          # Calendário do período
 │   │   ├── period/            # Seletor de período
+│   │   ├── charts/            # Gráfico de barras em SVG (toque mostra o valor)
 │   │   └── brand/             # BrandSymbol, BrandLockup
 │   ├── domain/                # Regras puras + testes
 │   │   ├── period.ts          # Períodos 21→20, dia 29–31, rótulos
@@ -320,6 +328,8 @@ Previstos para as próximas fases: `expo-print` (PDF) e `expo-local-authenticati
 │   │   ├── stats.ts           # Indicadores do período e status de cada dia
 │   │   ├── time-of-day.ts     # Horário de relógio → instante (vira +1 após a meia-noite)
 │   │   ├── backup-schema.ts   # Formato versionado e validação do backup
+│   │   ├── clt.ts             # Salário no modo CLT (extras, noturno, DSR, descontos)
+│   │   ├── tax-2026.ts        # Tabelas de INSS e IRRF de 2026 (revisar todo ano)
 │   │   └── time.ts, types.ts
 │   ├── db/
 │   │   ├── migrations.ts      # Esquema + migrações versionadas
@@ -389,7 +399,7 @@ As pastas `android/` e `ios/` **não** são versionadas: são geradas pelo Expo 
 npm test
 ```
 
-13 suítes, 136 testes, cobrindo:
+15 suítes, 150 testes, cobrindo:
 
 - **Jornadas**: os exemplos A e B, jornada aberta até "agora", batidas fora de ordem, sequência inconsistente.
 - **Períodos**: 21→20, o dia 21 abrindo o próximo período, virada de ano, dia de início 31 em fevereiro (inclusive bissexto), sem buracos nem sobreposição.
@@ -400,6 +410,9 @@ npm test
 - **Formatação**: durações, relógio, dinheiro em R$, datas em pt-BR.
 - **Tema**: contraste WCAG AA de todos os tokens de texto nos dois temas.
 - **Indicadores do período**: totais, folgas por tipo, feriado trabalhado, banco de horas, horas noturnas, interjornada, médias de início/fim.
+- **INSS e IRRF 2026**: faixas progressivas, teto, isenção até R$ 5.000, redutor parcial, dependentes.
+- **Modo CLT**: normais × extras 50% × extras 100% (feriado e domingo), adicional noturno, hora reduzida, DSR e simulador.
+- **PDF**: batidas, +1, horários editados, folgas, feriados, escape de HTML e um dia por linha.
 - **Backup**: ida e volta do arquivo, arquivos corrompidos, de outro app, de versão mais nova e com referências quebradas.
 - **Casos de uso com banco real** ([`src/services/punch-service.test.ts`](src/services/punch-service.test.ts)): o exemplo B batido ao vivo, encerrar no intervalo, horários inválidos, desfazer, edição 15:45 → 15:43 com voltar ao original, limites entre jornadas, troca de data de referência, jornada incompleta e correção, jornada manual que passa da meia-noite, folga sobre jornada (com desfazer) e exportar/importar backup.
 
@@ -421,6 +434,7 @@ Todos os PNGs são **gerados** a partir da geometria do símbolo por [`scripts/g
 | `assets/splash-icon.png` / `splash-icon-dark.png` | Splash claro/escuro |
 | `assets/favicon.png` | Favicon 48px com traço reforçado |
 | `assets/store/play-store-icon.png` | Ícone 512 da Play Store |
+| `assets/store/feature-graphic.png` | Imagem de destaque 1024×500 da Play Store (texto em Inter) |
 
 Para mudar algo na marca, edite o script (ou os SVGs em `assets/brand/`) e rode `npm run brand`.
 
@@ -443,7 +457,7 @@ Para mudar algo na marca, edite o script (ou os SVGs em `assets/brand/`) e rode 
 **Fase 1 · MVP (uso diário)** ✅
 Onboarding · Tela Hoje funcional (botão de estado, cronômetro, timeline) · Histórico (lista + calendário com feriados) · Detalhe e edição de jornada (editor de horário) · Folgas (4 tipos) · Feriados automáticos · Período e meta diária · Resumo com banco de horas · Calculadora simples · Backup e restauração.
 
-**Fase 2 · Premium**
+**Fase 2 · Premium** ✅
 Animações completas · Gráficos (barras, heatmap) · Indicadores secundários · Comparação entre períodos · Modo CLT (extras 50%/100%, noturno, INSS/IRRF) · Simulador · Exportação em PDF · Ajustes de feriados · Ilustrações dos estados vazios · Animação de abertura (splash → anel).
 
 **Fase 3 · Extras**

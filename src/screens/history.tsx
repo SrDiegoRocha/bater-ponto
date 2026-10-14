@@ -2,22 +2,26 @@ import * as Haptics from 'expo-haptics';
 import { router } from 'expo-router';
 import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
-import Animated, { FadeInDown, FadeOutDown } from 'react-native-reanimated';
+import { useSQLiteContext } from 'expo-sqlite';
+import Animated, { FadeInDown, FadeOut, FadeOutDown, LinearTransition } from 'react-native-reanimated';
 
 import { CalendarGrid } from '@/components/calendar/calendar-grid';
 import { PeriodSwitcher } from '@/components/period/period-switcher';
 import { Button, Card, EmptyState, Icon, Screen, SectionHeader, Text } from '@/components/ui';
 import { PressableScale } from '@/components/ui/pressable-scale';
-import { TimelineBar } from '@/components/workday/timeline-bar';
+import { WorkdayRow } from '@/components/workday/workday-row';
 import { usePeriodStats, useSelectedPeriod } from '@/hooks/use-period-stats';
 import { toDateKey } from '@/domain/time';
 import type { DateKey } from '@/domain/types';
-import { formatDuration, formatShortDate, formatTime } from '@/lib/format';
+import { formatShortDate } from '@/lib/format';
+import { removeWorkday } from '@/services/punch-service';
+import { showToast } from '@/stores/ui-store';
 import { minTouch, radius, spacing, useTheme, type ColorTokens } from '@/theme';
 
 // Histórico (§5.3): calendário do período + lista de jornadas. Toque longo no calendário = seleção múltipla.
 
 export function History() {
+  const db = useSQLiteContext();
   const period = useSelectedPeriod();
   const { stats, workdays, now } = usePeriodStats(period);
   const [selected, setSelected] = useState<Set<DateKey>>(new Set());
@@ -87,32 +91,23 @@ export function History() {
 
         <SectionHeader title={`Jornadas · ${workdays.length}`} />
         {workdays.length === 0 ? (
-          <EmptyState title="Nenhuma jornada neste período" description="Bata o ponto na tela Hoje ou registre uma jornada pelo +." />
+          <EmptyState illustration="period" title="Nenhuma jornada neste período" description="Bata o ponto na tela Hoje ou registre uma jornada pelo +." />
         ) : (
-          workdays.map((w) => {
+          workdays.map((w, i) => {
             const s = stats?.summaries.get(w.id);
             if (!s) return null;
-            const first = w.punches[0];
-            const last = w.punches.at(-1);
-            const crosses = last && toDateKey(last.at) !== w.refDate;
-            const incomplete = w.status === 'incomplete' || !s.isConsistent;
             return (
-              <PressableScale key={w.id} scaleTo={0.98} onPress={() => router.push(`/jornada/${w.id}`)} accessibilityRole="button">
-                <Card style={styles.row}>
-                  <View style={styles.rowHeader}>
-                    <Text variant="headline">{formatShortDate(w.refDate)}</Text>
-                    <Text variant="body" tabular color={incomplete ? 'danger' : 'text'}>
-                      {incomplete ? 'Incompleta' : formatDuration(s.workedMs)}
-                    </Text>
-                  </View>
-                  <Text variant="caption" color="textMuted" tabular>
-                    {first ? formatTime(first.at) : '--:--'} → {w.status === 'open' ? 'agora' : last ? formatTime(last.at) : '--:--'}
-                    {crosses ? ' +1' : ''} · intervalo {formatDuration(s.breakMs)} · {s.segments.length}{' '}
-                    {s.segments.length === 1 ? 'turno' : 'turnos'}
-                  </Text>
-                  <TimelineBar refDate={w.refDate} segments={s.segments} />
-                </Card>
-              </PressableScale>
+              <Animated.View key={w.id} entering={FadeInDown.delay(Math.min(i, 10) * 30)} exiting={FadeOut} layout={LinearTransition}>
+                <WorkdayRow
+                  workday={w}
+                  summary={s}
+                  onPress={() => router.push(`/jornada/${w.id}`)}
+                  onDelete={async () => {
+                    const undo = await removeWorkday(db, w.id);
+                    showToast(`Jornada de ${formatShortDate(w.refDate)} excluída`, { actions: [{ label: 'Desfazer', onPress: () => undo() }] });
+                  }}
+                />
+              </Animated.View>
             );
           })
         )}
@@ -166,8 +161,6 @@ const styles = StyleSheet.create({
   flex: { flex: 1 },
   iconButton: { width: minTouch, height: minTouch, alignItems: 'center', justifyContent: 'center' },
   calendarPlaceholder: { height: 320 },
-  row: { gap: spacing.sm },
-  rowHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline' },
   legend: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.md, marginTop: spacing.md, justifyContent: 'center' },
   legendItem: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
   legendDot: { width: 10, height: 10, borderRadius: radius.full },

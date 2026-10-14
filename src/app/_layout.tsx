@@ -1,3 +1,4 @@
+import Constants, { ExecutionEnvironment } from 'expo-constants';
 import { useFonts } from 'expo-font';
 import { Stack } from 'expo-router/stack';
 import { DarkTheme, DefaultTheme, ThemeProvider as NavigationThemeProvider } from 'expo-router/react-navigation';
@@ -14,7 +15,10 @@ import { fonts, ThemeProvider, useTheme } from '@/theme';
 
 // Splash fica até o banco migrar, as configurações carregarem e as fontes estarem prontas (§6.8).
 SplashScreen.preventAutoHideAsync();
-SplashScreen.setOptions({ duration: 300, fade: true });
+// Animação de saída só existe em builds próprios; no Expo Go a chamada gera aviso.
+if (Constants.executionEnvironment !== ExecutionEnvironment.StoreClient) {
+  SplashScreen.setOptions({ duration: 300, fade: true });
+}
 
 export default function RootLayout() {
   // Em builds as fontes já vêm embutidas pelo config plugin (no-op); no Expo Go são carregadas aqui.
@@ -95,10 +99,13 @@ function AppNavigator({ ready }: { ready: boolean }) {
         <Stack.Screen name="bater" options={sheet} />
         <Stack.Screen name="folga" options={sheet} />
         <Stack.Screen name="turno" options={sheet} />
+        <Stack.Screen name="exportar" options={sheet} />
+        <Stack.Screen name="feriado-novo" options={sheet} />
         <Stack.Screen name="ajustes/index" options={{ ...header, title: 'Ajustes' }} />
         <Stack.Screen name="ajustes/periodo" options={{ ...header, title: 'Período' }} />
         <Stack.Screen name="ajustes/jornada" options={{ ...header, title: 'Jornada' }} />
         <Stack.Screen name="ajustes/salario" options={{ ...header, title: 'Salário' }} />
+        <Stack.Screen name="ajustes/feriados" options={{ ...header, title: 'Feriados' }} />
         <Stack.Screen name="ajustes/aparencia" options={{ ...header, title: 'Aparência' }} />
         <Stack.Screen name="ajustes/dados" options={{ ...header, title: 'Dados e backup' }} />
       </Stack>

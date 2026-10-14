@@ -19,6 +19,11 @@ export type Settings = {
   holidayOvertimePct: number;
   nightPct: number;
   nightReduced: boolean;
+  dsrOnExtras: boolean;
+  /** Domingo trabalhado conta como hora extra 100% */
+  sundayDouble: boolean;
+  /** Dependentes para o IRRF */
+  dependents: number;
   optionalHolidays: boolean;
   theme: ThemePreference;
   userName: string;
@@ -40,6 +45,9 @@ export const DEFAULT_SETTINGS: Settings = {
   holidayOvertimePct: 100,
   nightPct: 20,
   nightReduced: true,
+  dsrOnExtras: true,
+  sundayDouble: true,
+  dependents: 0,
   optionalHolidays: false,
   theme: 'system',
   userName: '',

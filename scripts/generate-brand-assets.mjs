@@ -49,3 +49,25 @@ render('assets/splash-icon-dark.png', { size: 1024, scale: 0.62, color: MINT });
 
 // Favicon: traço e ponto mais grossos para ler bem em 48px
 render('assets/favicon.png', { size: 48, scale: 0.78, color: MINT, background: INK, stroke: 3.2, dot: 2.8 });
+
+// Play Store – imagem de destaque (1024×500): símbolo grande + wordmark + chamada, fundo Tinta.
+// Texto renderizado com a Inter do próprio projeto (sem depender de fontes do sistema).
+{
+  const fontFiles = ['Inter_400Regular', 'Inter_700Bold'].map((f) => join(root, 'assets/fonts', `${f}.ttf`));
+  const s = 11; // escala do símbolo (24u → 264px)
+  const feature = `<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="500" viewBox="0 0 1024 500">
+    <rect width="1024" height="500" fill="${INK}"/>
+    <g opacity="0.06" transform="translate(700 -60) scale(26)">${symbol({ color: MINT })}</g>
+    <g transform="translate(96 118) scale(${s})">${symbol({ color: MINT })}</g>
+    <text x="392" y="236" font-family="Inter" font-weight="700" font-size="76" letter-spacing="-1.5" fill="#F2F4F7">bater ponto<tspan fill="${MINT}">.</tspan></text>
+    <text x="396" y="292" font-family="Inter" font-weight="400" font-size="26" fill="#8A93A3">Sua jornada, mesmo depois da meia-noite.</text>
+  </svg>`;
+  const png = new Resvg(feature, {
+    fitTo: { mode: 'width', value: 1024 },
+    font: { fontFiles, loadSystemFonts: false, defaultFontFamily: 'Inter' },
+  })
+    .render()
+    .asPng();
+  writeFileSync(join(root, 'assets/store/feature-graphic.png'), png);
+  console.log('✓ assets/store/feature-graphic.png (1024×500)');
+}

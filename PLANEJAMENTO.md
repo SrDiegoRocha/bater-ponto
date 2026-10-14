@@ -855,7 +855,13 @@ A camada `domain/` recebe dados simples e devolve resultados. Testes unitários 
 > - Os casos de uso de banco (bater, editar, desfazer, folgas, backup) são testados contra SQLite real (`node:sqlite`).
 Onboarding · HOJE (botão, estados, timeline, cronômetro) · Histórico (lista + calendário com feriados) · Detalhe/edição de jornada · Folgas (4 tipos) · Feriados nacionais automáticos · Configuração de período e meta diária · Resumo com os cards principais + banco de horas · Calculadora modo simples · **Backup e restauração** (proteger os dados desde o 1º dia).
 
-**Fase 2: Premium**
+**Fase 2: Premium** ✅ concluída em 14/10/2026
+
+> Notas de implementação da fase 2:
+> - **Modo CLT** (horista): até a meta do dia = hora normal; acima = extra (+50%). Feriado, folga marcada e domingo (opcional) = extra de feriado (+100%). Adicional noturno com hora reduzida opcional, DSR sobre extras opcional, INSS e IRRF pelas tabelas de **2026** (INSS: Portaria MPS/MF nº 13/2026; IRRF: Leis 15.191/2025 e 15.270/2025, isenção até R$ 5.000 com redutor até R$ 7.350). Todos os percentuais e dependentes são configuráveis. As tabelas ficam em `src/domain/tax-2026.ts` e precisam ser revistas a cada ano.
+> - **Gráficos**: horas por dia (com linha da meta) e total por dia da semana, em SVG próprio, com toque para ver o valor. O calendário do Histórico já faz o papel de heatmap, então não há um heatmap separado.
+> - **Animações feitas**: números com count-up, comparação com o período anterior, troca de cor animada no botão principal, crossfade do rótulo, barras que crescem, lista com entrada em cascata e transição de layout, deslizar para excluir, tremida ao bater no limite do horário, toasts animados. Todas respeitam "Reduzir movimento".
+> - **Animações que ficaram de fora** (baixo impacto): bolha deslizante no calendário, rolagem de dígito no editor, crossfade ao trocar o tema e trocar de período deslizando o dedo.
 Ilustrações dos estados vazios · Animação de abertura (splash → anel) · Imagem de destaque da Play Store · Todas as animações da seção 7 · Gráficos (barras, heatmap) · Indicadores secundários · Comparação entre períodos · Modo CLT (extras 50%/100%, noturno, INSS/IRRF) · Simulador · **Exportação em PDF** · Ajustes de feriados (desativar, facultativos, próprios).
 
 **Fase 3: Extras**
