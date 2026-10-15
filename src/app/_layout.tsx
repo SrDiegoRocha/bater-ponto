@@ -13,6 +13,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { DATABASE_NAME, migrateDbIfNeeded } from '@/db/migrations';
 import { runAutoBackupIfDue } from '@/services/backup-service';
 import { LockGate } from '@/components/lock/lock-gate';
+import { ReminderSync } from '@/components/reminders/reminder-sync';
 import { ToastHost } from '@/components/ui';
 import { useSettingsStore } from '@/stores/settings-store';
 import { fonts, ThemeProvider, useTheme } from '@/theme';
@@ -147,10 +148,12 @@ function AppNavigator() {
         <Stack.Screen name="ajustes/escalas" options={{ ...header, title: 'Escalas' }} />
         <Stack.Screen name="ajustes/feriados" options={{ ...header, title: 'Feriados' }} />
         <Stack.Screen name="ajustes/aparencia" options={{ ...header, title: 'Aparência' }} />
+        <Stack.Screen name="ajustes/lembretes" options={{ ...header, title: 'Lembretes' }} />
         <Stack.Screen name="ajustes/seguranca" options={{ ...header, title: 'Segurança' }} />
         <Stack.Screen name="ajustes/dados" options={{ ...header, title: 'Dados e backup' }} />
       </Stack>
       <QuickActionRouting />
+      <ReminderSync />
       <ToastHost />
       <LockGate />
     </NavigationThemeProvider>

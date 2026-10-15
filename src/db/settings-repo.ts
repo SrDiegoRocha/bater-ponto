@@ -1,5 +1,6 @@
 import type { SQLiteDatabase } from 'expo-sqlite';
 
+import { DEFAULT_REMINDERS, type ReminderSettings } from '@/domain/reminders';
 import { CLT_RULES, type WorkRules } from '@/domain/work-rules';
 
 // Configurações em chave/valor (JSON). Os padrões vivem aqui, então uma chave ausente no banco
@@ -35,6 +36,8 @@ export type Settings = {
   /** Backup automático semanal guardado no próprio app */
   autoBackup: boolean;
   lastAutoBackupAt: number | null;
+  /** Lembretes por notificação (do aparelho: dependem da permissão dele) */
+  reminders: ReminderSettings;
 };
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -60,10 +63,11 @@ export const DEFAULT_SETTINGS: Settings = {
   lockAfterSec: 60,
   autoBackup: true,
   lastAutoBackupAt: null,
+  reminders: DEFAULT_REMINDERS,
 };
 
 /** Chaves que pertencem ao aparelho, não aos dados (não entram no backup) */
-export const DEVICE_ONLY_SETTINGS: readonly (keyof Settings)[] = ['biometricLock', 'lockAfterSec', 'autoBackup', 'lastAutoBackupAt'];
+export const DEVICE_ONLY_SETTINGS: readonly (keyof Settings)[] = ['biometricLock', 'lockAfterSec', 'autoBackup', 'lastAutoBackupAt', 'reminders'];
 
 export async function loadSettings(db: SQLiteDatabase): Promise<Settings> {
   const rows = await db.getAllAsync<{ key: string; value: string }>('SELECT key, value FROM setting');

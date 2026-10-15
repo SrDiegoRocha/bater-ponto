@@ -4,17 +4,19 @@ import { useSQLiteContext } from 'expo-sqlite';
 import { formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { useState } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { Alert, Linking, StyleSheet, View } from 'react-native';
 
 import { BrandLockup } from '@/components/brand/brand-mark';
 import { Illustration } from '@/components/brand/illustrations';
-import { Button, Card, ChoiceChips, Divider, ListRow, Screen, SectionHeader, Stepper, SwitchRow, Text } from '@/components/ui';
+import { Banner, Button, Card, ChoiceChips, Divider, ListRow, Screen, SectionHeader, Stepper, SwitchRow, Text } from '@/components/ui';
+import { TimeField } from '@/components/time/time-field';
 import { MoneyInput } from '@/components/ui/money-input';
 import { useDbQuery } from '@/hooks/use-db-query';
 import { useNow } from '@/hooks/use-now';
 import { getPeriodContaining, periodLabel, periodRangeLabel } from '@/domain/period';
 import { MINUTE, toDateKey } from '@/domain/time';
 import type { Settings, ThemePreference } from '@/db/settings-repo';
+import type { ReminderSettings as ReminderConfig } from '@/domain/reminders';
 import { TAX_YEAR } from '@/domain/tax-2026';
 import { CLT_RULES, describeRules, type WorkRules } from '@/domain/work-rules';
 import { formatDuration, formatMoney, formatShortDate, formatTime } from '@/lib/format';
@@ -22,6 +24,7 @@ import { toCents } from '@/domain/salary';
 import { authenticate, getLockAvailability } from '@/services/auth-service';
 import { backupFlow, eraseFlow, restoreFlow, restoreStoredFlow } from '@/services/backup-flows';
 import { listStoredBackups, type StoredBackup } from '@/services/backup-service';
+import { remindersAvailable, requestReminderPermission } from '@/services/reminders';
 import { useLockStore } from '@/stores/lock-store';
 import { showToast } from '@/stores/ui-store';
 import { useSettings, useSettingsStore } from '@/stores/settings-store';
@@ -45,6 +48,8 @@ export function SettingsHome() {
         <ListRow title="Salário" subtitle={s.salaryMode === 'clt' ? 'Valor da hora · modo CLT' : 'Valor da hora'} icon="payments" value={s.hourlyRate > 0 ? formatMoney(toCents(s.hourlyRate)) : '—'} onPress={() => router.push('/ajustes/salario')} />
         <Divider inset={36} />
         <ListRow title="Feriados" subtitle={s.optionalHolidays ? 'Nacionais + facultativos' : 'Nacionais automáticos'} icon="celebration" onPress={() => router.push('/ajustes/feriados')} />
+        <Divider inset={36} />
+        <ListRow title="Lembretes" subtitle="Avisos para não esquecer de anotar" icon="notifications" value={s.reminders.enabled ? 'Ligados' : 'Desligados'} onPress={() => router.push('/ajustes/lembretes')} />
         <Divider inset={36} />
         <ListRow title="Segurança" subtitle={s.biometricLock ? 'Trava ligada' : 'Trava desligada'} icon="fingerprint" onPress={() => router.push('/ajustes/seguranca')} />
         <Divider inset={36} />
@@ -161,6 +166,92 @@ export function WorkdaySettings() {
       <Text variant="caption" color="textMuted">
         Em feriados, folgas e domingos (se marcado em Salário) todas as horas são extra 100%. A semana vai de segunda a domingo.
         Não tem jornada fixa? Não precisa configurar nada: o app usa só esses limites.
+      </Text>
+    </Screen>
+  );
+}
+
+export function ReminderSettings() {
+  const db = useSQLiteContext();
+  const { reminders: r, workRules } = useSettings();
+  const update = useSettingsStore((st) => st.update);
+  const set = (patch: Partial<ReminderConfig>) => update(db, { reminders: { ...r, ...patch } });
+
+  const available = remindersAvailable();
+
+  async function toggle(on: boolean) {
+    if (!on) return set({ enabled: false });
+    if (await requestReminderPermission()) {
+      await set({ enabled: true });
+      showToast('Lembretes ligados');
+      return;
+    }
+    Alert.alert('Notificações bloqueadas', 'Permita as notificações do Bater Ponto nas configurações do Android para receber os lembretes.', [
+      { text: 'Agora não', style: 'cancel' },
+      { text: 'Abrir configurações', onPress: () => Linking.openSettings() },
+    ]);
+  }
+
+  return (
+    <Screen nativeHeader>
+      {!available ? (
+        <Banner
+          tone="warning"
+          icon="notifications_off"
+          title="Lembretes indisponíveis nesta versão"
+          description="Este app não tem o recurso de notificações. Atualize o Expo Go na Play Store ou use a versão instalada do app."
+        />
+      ) : null}
+      <Card style={styles.gap}>
+        <SwitchRow
+          title="Lembretes"
+          subtitle="Avisos para você não esquecer de anotar o ponto"
+          value={r.enabled && available}
+          onValueChange={toggle}
+          disabled={!available}
+        />
+      </Card>
+
+      {r.enabled && available ? (
+        <Card style={styles.gap}>
+          <SwitchRow
+            title="Passou do limite do dia"
+            subtitle={`Avisa se o dia passar de ${formatDuration(workRules.dailyLimitMinutes * MINUTE)} trabalhadas e você ainda não anotou a saída`}
+            value={r.overLimit}
+            onValueChange={(v) => set({ overLimit: v })}
+          />
+          <Divider />
+          <SwitchRow
+            title="Intervalo longo"
+            subtitle="Avisa se o intervalo passar desse tempo sem você anotar a volta"
+            value={r.longBreak}
+            onValueChange={(v) => set({ longBreak: v })}
+          />
+          {r.longBreak ? (
+            <Stepper
+              label="Tempo de intervalo"
+              value={r.longBreakMinutes}
+              min={30}
+              max={8 * 60}
+              step={30}
+              format={(m) => formatDuration(m * MINUTE)}
+              onChange={(v) => set({ longBreakMinutes: v })}
+            />
+          ) : null}
+          <Divider />
+          <SwitchRow
+            title="Fim do dia"
+            subtitle="Avisa nesse horário se você não anotou nada no dia. Só nos dias da semana em que costuma trabalhar, fora folgas e feriados."
+            value={r.endOfDay}
+            onValueChange={(v) => set({ endOfDay: v })}
+          />
+          {r.endOfDay ? <TimeField label="Horário" value={r.endOfDayMinutes} onChange={(v) => set({ endOfDayMinutes: v })} /> : null}
+        </Card>
+      ) : null}
+
+      <Text variant="caption" color="textMuted">
+        Os lembretes são do próprio celular e não precisam de internet. Em alguns aparelhos, a economia de bateria pode atrasar o aviso
+        alguns minutos.
       </Text>
     </Screen>
   );

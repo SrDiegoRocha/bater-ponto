@@ -97,6 +97,7 @@ O que já existe hoje:
 - ✅ **Feriados**: ativar/desativar por ano ou para sempre, pontos facultativos e feriados próprios (recorrentes ou não).
 - ✅ **Histórico**: deslizar para excluir (com desfazer) e entrada animada da lista.
 - ✅ **Ilustrações** dos estados vazios e **imagem de destaque** da Play Store.
+- ✅ **Lembretes por notificação** (locais, funcionam no Expo Go): passou do limite do dia sem anotar a saída, intervalo longo sem anotar a volta e fim do dia sem nada anotado (só nos dias da semana em que a pessoa costuma trabalhar, aprendidos pelas últimas 4 semanas, fora folgas e feriados). Tocar no aviso abre "Anotar batida". Ajustes → Lembretes.
 - ✅ **Regras da jornada** no lugar da meta diária: hora extra é o que passa de 8h no dia ou 44h na semana (sem contar duas vezes), tolerância de 10 min (art. 58 §1º), acordo de compensação semanal (até 10h/dia) e contrato com limites menores. Atende quem tem escala variável sem pedir meta nenhuma.
 - ✅ **Bloqueio por biometria**: digital/rosto ou PIN do Android, ao abrir e ao voltar do segundo plano (tempo configurável), conteúdo oculto nos apps recentes, confirmação extra para restaurar e apagar.
 - ✅ **Build com EAS**: perfis de desenvolvimento, preview (APK) e produção (AAB).
