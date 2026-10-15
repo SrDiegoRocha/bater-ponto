@@ -1,9 +1,10 @@
 import type { PayslipValues } from './payslip';
+import type { DayCheck } from './timesheet-check';
 
 // Formato do arquivo de backup (PLANEJAMENTO.md §3.9). Versionado, validado antes de qualquer gravação.
 
 export const BACKUP_APP_ID = 'bater-ponto';
-export const BACKUP_SCHEMA_VERSION = 3;
+export const BACKUP_SCHEMA_VERSION = 4;
 
 export type BackupWorkday = { id: string; refDate: string; status: 'open' | 'closed' | 'incomplete'; note: string | null };
 export type BackupPunch = {
@@ -32,6 +33,8 @@ export type BackupTemplate = { id: string; name: string; shifts: { start: number
 
 export type BackupPayslip = { periodStart: string; periodEnd: string; values: PayslipValues };
 
+export type BackupDayCheck = DayCheck;
+
 export type BackupData = {
   workdays: BackupWorkday[];
   punches: BackupPunch[];
@@ -41,6 +44,8 @@ export type BackupData = {
   templates: BackupTemplate[];
   /** v3+ */
   payslips: BackupPayslip[];
+  /** v4+ */
+  dayChecks: BackupDayCheck[];
   settings: Record<string, unknown>;
 };
 
@@ -147,6 +152,17 @@ function validPayslip(p: unknown): p is BackupPayslip {
   );
 }
 
+function validDayCheck(c: unknown): c is BackupDayCheck {
+  return (
+    isObj(c) &&
+    isStr(c.date) &&
+    DATE_RE.test(c.date) &&
+    (c.status === 'ok' || c.status === 'diff') &&
+    isNullable(c.companyWorkedMs, isNum) &&
+    isNullable(c.note, isStr)
+  );
+}
+
 /** Migra arquivos de versões antigas para a atual (B6), um passo por versão */
 function migrate(file: Record<string, unknown>): Record<string, unknown> {
   let f = file;
@@ -154,6 +170,8 @@ function migrate(file: Record<string, unknown>): Record<string, unknown> {
   if (f.schemaVersion === 1 && isObj(f.data)) f = { ...f, schemaVersion: 2, data: { ...f.data, templates: [] } };
   // v2 → v3: ainda não havia holerites conferidos
   if (f.schemaVersion === 2 && isObj(f.data)) f = { ...f, schemaVersion: 3, data: { ...f.data, payslips: [] } };
+  // v3 → v4: ainda não havia conferência do espelho
+  if (f.schemaVersion === 3 && isObj(f.data)) f = { ...f, schemaVersion: 4, data: { ...f.data, dayChecks: [] } };
   return f;
 }
 
@@ -176,7 +194,7 @@ export function parseBackup(text: string): ParseResult {
   const data = file.data;
   if (!isObj(data)) return { ok: false, error: 'Backup sem dados.' };
 
-  const { workdays, punches, dayOffs, holidayOverrides, templates, payslips, settings } = data;
+  const { workdays, punches, dayOffs, holidayOverrides, templates, payslips, dayChecks, settings } = data;
   if (!Array.isArray(workdays) || !workdays.every(validWorkday)) return { ok: false, error: 'Jornadas inválidas no backup.' };
   if (!Array.isArray(punches) || !punches.every(validPunch)) return { ok: false, error: 'Batidas inválidas no backup.' };
   if (!Array.isArray(dayOffs) || !dayOffs.every(validDayOff)) return { ok: false, error: 'Folgas inválidas no backup.' };
@@ -185,6 +203,9 @@ export function parseBackup(text: string): ParseResult {
   }
   if (!Array.isArray(templates) || !templates.every(validTemplate)) return { ok: false, error: 'Escalas inválidas no backup.' };
   if (!Array.isArray(payslips) || !payslips.every(validPayslip)) return { ok: false, error: 'Holerites inválidos no backup.' };
+  if (!Array.isArray(dayChecks) || !dayChecks.every(validDayCheck)) {
+    return { ok: false, error: 'Conferências do espelho inválidas no backup.' };
+  }
   if (!isObj(settings)) return { ok: false, error: 'Configurações inválidas no backup.' };
 
   // Integridade: toda batida pertence a uma jornada do arquivo; ids únicos
@@ -201,7 +222,7 @@ export function parseBackup(text: string): ParseResult {
     schemaVersion: BACKUP_SCHEMA_VERSION,
     appVersion: isStr(file.appVersion) ? file.appVersion : '?',
     createdAt: isNum(file.createdAt) ? file.createdAt : 0,
-    data: { workdays, punches, dayOffs, holidayOverrides, templates, payslips, settings },
+    data: { workdays, punches, dayOffs, holidayOverrides, templates, payslips, dayChecks, settings },
   };
   return {
     ok: true,

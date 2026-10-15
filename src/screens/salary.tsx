@@ -10,6 +10,7 @@ import { Screen } from '@/components/ui/screen';
 import { MoneyInput } from '@/components/ui/money-input';
 import { cltConfigFromSettings, useCltBreakdown } from '@/hooks/use-clt-breakdown';
 import { useDbQuery } from '@/hooks/use-db-query';
+import { useTimesheetCheck } from '@/hooks/use-timesheet-check';
 import { useCountUp } from '@/hooks/use-count-up';
 import { usePeriodStats, useSelectedPeriod } from '@/hooks/use-period-stats';
 import { computeCltPay, type CltBreakdown } from '@/domain/clt';
@@ -108,6 +109,7 @@ export function Salary() {
         ) : null}
       </Card>
 
+      <TimesheetCard period={period} />
       <PayslipCard period={period} />
 
       <Card style={styles.gap}>
@@ -146,6 +148,41 @@ export function Salary() {
         Estimativa. Confira com seu holerite.{clt ? `\nDescontos pelas tabelas de INSS e IRRF de ${TAX_YEAR}.` : ''}
       </Text>
     </Screen>
+  );
+}
+
+/** Atalho para a conferência do espelho de ponto do período, com o andamento */
+function TimesheetCard({ period }: { period: Period }) {
+  const data = useTimesheetCheck(period);
+  const summary = data?.summary;
+  const started = !!summary && summary.checked > 0;
+  const color = !started ? 'text' : summary.diffs > 0 ? 'danger' : 'work';
+  const title = !started
+    ? 'Conferir espelho de ponto'
+    : summary.diffs > 0
+      ? `Espelho: ${summary.diffs} ${summary.diffs === 1 ? 'dia diferente' : 'dias diferentes'}`
+      : summary.pending === 0
+        ? 'Espelho confere'
+        : 'Espelho: nenhuma diferença até agora';
+  const subtitle = !started
+    ? 'Compare cada dia do espelho da empresa com o que você anotou.'
+    : `${summary.checked} de ${summary.total} dias conferidos`;
+
+  return (
+    <PressableScale scaleTo={0.98} onPress={() => router.push('/espelho')} accessibilityRole="button">
+      <Card style={styles.payslip}>
+        <Icon name="fact_check" color={color === 'text' ? 'primary' : color} />
+        <View style={styles.rowLabel}>
+          <Text variant="headline" color={color}>
+            {title}
+          </Text>
+          <Text variant="caption" color="textMuted">
+            {subtitle}
+          </Text>
+        </View>
+        <Icon name="chevron_right" color="textMuted" />
+      </Card>
+    </PressableScale>
   );
 }
 

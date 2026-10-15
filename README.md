@@ -90,7 +90,8 @@ O que já existe hoje:
 - ✅ **Copiar jornada** para um ou vários dias (mantém os horários, inclusive a madrugada), com atalho "copiar a última jornada" direto no calendário.
 - ✅ **Folgas** (folga, férias, atestado, feriado) em um ou vários dias, com proteção para dias que já têm jornada.
 - ✅ **Resumo**: cards com números animados e comparação com o período anterior, gráfico de horas por dia (com a meta) e por dia da semana, 11 indicadores de detalhe e botão de exportar PDF.
-- ✅ **Conferir holerite** (CLT): por período, digita-se o que o holerite pagou (horas extras 50%/100%, adicional noturno, DSR; horas em decimal ou relógio) e o app compara com o calculado pelas batidas, apontando o que faltou pagar. Fica salvo e entra no backup (formato v3).
+- ✅ **Conferir holerite** (CLT): por período, digita-se o que o holerite pagou (horas extras 50%/100%, adicional noturno, DSR; horas em decimal ou relógio) e o app compara com o calculado pelas batidas, apontando o que faltou pagar. Fica salvo e entra no backup.
+- ✅ **Conferir espelho de ponto** (dia a dia): lista os dias do período com as batidas anotadas; cada dia é marcado como "bate" (um toque) ou "diferente", com as horas que o espelho mostra e uma observação. Mostra a diferença total e gera um texto com os dias divergentes para enviar ao RH. Entra no backup (formato v4).
 - ✅ **Salário**: modo simples ou **modo CLT** (extras 50%/100%, domingo, adicional noturno com hora reduzida, DSR, INSS e IRRF 2026 com a isenção até R$ 5.000), recibo detalhado e simulador "E se?" com sliders.
 - ✅ **Espelho de ponto em PDF**: tabela dia a dia (batidas, +1, horários editados, folgas, feriados, saldo), totais e salário opcional, compartilhado pelo Android.
 - ✅ **Feriados**: ativar/desativar por ano ou para sempre, pontos facultativos e feriados próprios (recorrentes ou não).
@@ -362,6 +363,7 @@ Wordmark: `bater ponto.` em Inter Bold, minúsculas, com o **ponto final sempre 
 | `workday` | Jornada: `ref_date`, `status` (`open`/`closed`/`incomplete`), observação |
 | `punch` | Batida: `kind` (`in`/`out`), `at` (epoch ms), `tz`, `is_day_start`, `is_day_end`, `original_at` (se editada), `source` (`live`/`retro`/`manual`) |
 | `payslip` | Holerite conferido de um período: `period_start` (chave), `period_end`, `data` (JSON com horas e valores informados) |
+| `day_check` | Conferência do espelho de um dia: `date` (chave), `status` (`ok`/`diff`), `company_worked_ms` (horas no espelho), `note` |
 | `day_off` | Folga por data: `kind` (`folga`/`ferias`/`atestado`/`feriado`), observação |
 | `holiday_override` | Só o que o usuário mudou: feriados próprios e feriados nacionais desativados |
 | `setting` | Configurações chave/valor em JSON, com padrões no código |

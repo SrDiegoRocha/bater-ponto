@@ -82,6 +82,19 @@ const steps: ((db: SQLiteDatabase) => Promise<void>)[] = [
       );
     `);
   },
+
+  // v3 → v4: conferência do espelho de ponto, dia a dia
+  async (db) => {
+    await db.execAsync(`
+      CREATE TABLE day_check (
+        date                TEXT PRIMARY KEY NOT NULL,
+        status              TEXT NOT NULL CHECK (status IN ('ok', 'diff')),
+        company_worked_ms   INTEGER,
+        note                TEXT,
+        updated_at          INTEGER NOT NULL
+      );
+    `);
+  },
 ];
 
 export const DATABASE_NAME = 'bater-ponto.db';

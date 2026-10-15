@@ -137,6 +137,8 @@ function AppNavigator() {
         <Stack.Screen name="aplicar" options={{ ...header, title: 'Preencher dias', presentation: 'modal' }} />
         <Stack.Screen name="escala" options={{ ...header, title: 'Escala', presentation: 'modal' }} />
         <Stack.Screen name="holerite" options={{ ...header, title: 'Conferir holerite', presentation: 'modal' }} />
+        <Stack.Screen name="espelho" options={{ ...header, title: 'Conferir espelho de ponto', presentation: 'modal' }} />
+        <Stack.Screen name="espelho-dia" options={{ ...header, title: 'Conferir dia' }} />
         <Stack.Screen name="feriado-novo" options={sheet} />
         <Stack.Screen name="ajustes/index" options={{ ...header, title: 'Ajustes' }} />
         <Stack.Screen name="ajustes/periodo" options={{ ...header, title: 'Período' }} />

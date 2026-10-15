@@ -25,6 +25,9 @@ export async function exportData(db: SQLiteDatabase): Promise<BackupData> {
   const payslips = await db.getAllAsync<{ period_start: string; period_end: string; data: string }>(
     'SELECT period_start, period_end, data FROM payslip ORDER BY period_start',
   );
+  const dayChecks = await db.getAllAsync<{ date: string; status: 'ok' | 'diff'; company_worked_ms: number | null; note: string | null }>(
+    'SELECT date, status, company_worked_ms, note FROM day_check ORDER BY date',
+  );
   const settingRows = await db.getAllAsync<{ key: string; value: string }>('SELECT key, value FROM setting');
 
   const settings: Record<string, unknown> = {};
@@ -66,6 +69,7 @@ export async function exportData(db: SQLiteDatabase): Promise<BackupData> {
       periodEnd: p.period_end,
       values: { ...EMPTY_PAYSLIP, ...JSON.parse(p.data) },
     })),
+    dayChecks: dayChecks.map((c) => ({ date: c.date, status: c.status, companyWorkedMs: c.company_worked_ms, note: c.note })),
     settings,
   };
 }
@@ -78,6 +82,7 @@ async function wipe(db: SQLiteDatabase, run: (sql: string, ...params: (string | 
   await run('DELETE FROM holiday_override');
   await run('DELETE FROM shift_template');
   await run('DELETE FROM payslip');
+  await run('DELETE FROM day_check');
   const keep = DEVICE_ONLY_SETTINGS.map(() => '?').join(',');
   await run(`DELETE FROM setting WHERE key NOT IN (${keep})`, ...DEVICE_ONLY_SETTINGS);
 }
@@ -122,6 +127,12 @@ export async function importData(db: SQLiteDatabase, data: BackupData): Promise<
       await run(
         'INSERT INTO payslip (period_start, period_end, data, updated_at) VALUES (?, ?, ?, ?)',
         p.periodStart, p.periodEnd, JSON.stringify(p.values), now,
+      );
+    }
+    for (const c of data.dayChecks) {
+      await run(
+        'INSERT INTO day_check (date, status, company_worked_ms, note, updated_at) VALUES (?, ?, ?, ?, ?)',
+        c.date, c.status, c.companyWorkedMs, c.note, now,
       );
     }
     for (const [key, value] of Object.entries(data.settings)) {
