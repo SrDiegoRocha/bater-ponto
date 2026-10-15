@@ -35,3 +35,23 @@ export function resolveSequence(anchor: number, minutes: readonly MinuteOfDay[])
   }
   return result;
 }
+
+/**
+ * Ocorrência mais recente de `minutes` até `now` (com `tolerance` para o minuto corrente).
+ * Batida copiada de outro app: "23:50" digitado às 00:30 é de ontem, "08:02" às 14:00 é de hoje.
+ */
+export function lastOccurrence(now: number, minutes: MinuteOfDay, tolerance = 0): number {
+  const at = nextOccurrence(now + tolerance, minutes, { inclusive: true });
+  if (at <= now + tolerance) return at;
+  const previous = new Date(at - DAY);
+  previous.setHours(Math.floor(minutes / 60), minutes % 60, 0, 0);
+  return previous.getTime();
+}
+
+/** "0802" → 08:02 (4 dígitos, horas 00–23, minutos 00–59); qualquer outra coisa → null */
+export function parseTypedTime(digits: string): MinuteOfDay | null {
+  if (!/^\d{4}$/.test(digits)) return null;
+  const h = Number(digits.slice(0, 2));
+  const min = Number(digits.slice(2));
+  return h < 24 && min < 60 ? h * 60 + min : null;
+}

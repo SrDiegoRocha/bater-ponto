@@ -5,15 +5,20 @@ import { StyleSheet, View } from 'react-native';
 
 import { PeriodSwipe } from '@/components/period/period-swipe';
 import { PeriodSwitcher } from '@/components/period/period-switcher';
-import { Button, Card, ChoiceChips, Divider, SliderRow, SwitchRow, Text } from '@/components/ui';
+import { Button, Card, ChoiceChips, Divider, Icon, PressableScale, SliderRow, SwitchRow, Text } from '@/components/ui';
 import { Screen } from '@/components/ui/screen';
 import { MoneyInput } from '@/components/ui/money-input';
+import { cltConfigFromSettings, useCltBreakdown } from '@/hooks/use-clt-breakdown';
+import { useDbQuery } from '@/hooks/use-db-query';
 import { useCountUp } from '@/hooks/use-count-up';
 import { usePeriodStats, useSelectedPeriod } from '@/hooks/use-period-stats';
 import { computeCltPay, type CltBreakdown } from '@/domain/clt';
+import { comparePayslip } from '@/domain/payslip';
+import type { Period } from '@/domain/period';
 import { simpleGrossCents, toCents } from '@/domain/salary';
 import { TAX_YEAR } from '@/domain/tax-2026';
 import { HOUR } from '@/domain/time';
+import { getPayslip } from '@/db/payslip-repo';
 import { formatClock, formatDuration, formatMoney } from '@/lib/format';
 import { useSettings, useSettingsStore } from '@/stores/settings-store';
 import { spacing } from '@/theme';
@@ -44,17 +49,7 @@ export function Salary() {
       holidays,
       now,
       extraSimulatedMs,
-      config: {
-        hourlyRate: rate,
-        goal: settings.dailyGoal,
-        overtimePct: settings.overtimePct,
-        holidayOvertimePct: settings.holidayOvertimePct,
-        nightPct: settings.nightPct,
-        nightReduced: settings.nightReduced,
-        dsrOnExtras: settings.dsrOnExtras,
-        sundayDouble: settings.sundayDouble,
-        dependents: settings.dependents,
-      },
+      config: cltConfigFromSettings(settings, rate),
     });
   }, [clt, stats, period, workdays, dayOffs, holidays, now, extraSimulatedMs, rate, settings]);
 
@@ -113,6 +108,8 @@ export function Salary() {
         ) : null}
       </Card>
 
+      <PayslipCard period={period} />
+
       <Card style={styles.gap}>
         <SwitchRow
           title="Simular “E se?”"
@@ -149,6 +146,47 @@ export function Salary() {
         Estimativa. Confira com seu holerite.{clt ? `\nDescontos pelas tabelas de INSS e IRRF de ${TAX_YEAR}.` : ''}
       </Text>
     </Screen>
+  );
+}
+
+/** Atalho para a conferência do holerite do período, com o resultado se já foi feita */
+function PayslipCard({ period }: { period: Period }) {
+  const settings = useSettings();
+  const breakdown = useCltBreakdown(period);
+  const { data: payslip } = useDbQuery((d) => getPayslip(d, period), [period.start]);
+
+  let title = 'Conferir holerite';
+  let subtitle = 'Copie as horas extras, o adicional noturno e o DSR do holerite e veja se a empresa pagou certo.';
+  let color: 'text' | 'work' | 'danger' = 'text';
+  if (payslip && breakdown) {
+    const values =
+      settings.hourlyRate > 0 ? payslip : { ...payslip, extraCents: null, extraDoubleCents: null, nightCents: null, dsrCents: null };
+    const check = comparePayslip(values, breakdown, settings);
+    const underpaid = check.rows.some((r) => r.status === 'underpaid');
+    title = underpaid
+      ? check.missingCents > 0
+        ? `Holerite: pode faltar ${formatMoney(check.missingCents)}`
+        : 'Holerite: horas pagas a menos'
+      : 'Holerite confere';
+    subtitle = 'Toque para ver os detalhes ou corrigir os valores.';
+    color = underpaid ? 'danger' : 'work';
+  }
+
+  return (
+    <PressableScale scaleTo={0.98} onPress={() => router.push('/holerite')} accessibilityRole="button">
+      <Card style={styles.payslip}>
+        <Icon name="receipt_long" color={color === 'text' ? 'primary' : color} />
+        <View style={styles.rowLabel}>
+          <Text variant="headline" color={color}>
+            {title}
+          </Text>
+          <Text variant="caption" color="textMuted">
+            {subtitle}
+          </Text>
+        </View>
+        <Icon name="chevron_right" color="textMuted" />
+      </Card>
+    </PressableScale>
   );
 }
 
@@ -207,4 +245,5 @@ const styles = StyleSheet.create({
   row: { flexDirection: 'row', justifyContent: 'space-between', gap: spacing.md },
   rowLabel: { flex: 1 },
   totalHeader: { flexDirection: 'row', justifyContent: 'space-between' },
+  payslip: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
 });

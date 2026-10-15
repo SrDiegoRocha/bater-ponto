@@ -128,7 +128,7 @@ function AppNavigator() {
         <Stack.Screen name="jornada/[id]" options={{ ...header, title: 'Jornada' }} />
         <Stack.Screen name="jornada/nova" options={{ ...header, title: 'Registrar jornada', presentation: 'modal' }} />
         <Stack.Screen name="batida/[id]" options={sheet} />
-        <Stack.Screen name="bater" options={sheet} />
+        <Stack.Screen name="bater" options={{ ...header, title: 'Anotar batida', presentation: 'modal' }} />
         <Stack.Screen name="folga" options={sheet} />
         <Stack.Screen name="turno" options={sheet} />
         <Stack.Screen name="exportar" options={sheet} />
@@ -136,6 +136,7 @@ function AppNavigator() {
         <Stack.Screen name="mover" options={sheet} />
         <Stack.Screen name="aplicar" options={{ ...header, title: 'Preencher dias', presentation: 'modal' }} />
         <Stack.Screen name="escala" options={{ ...header, title: 'Escala', presentation: 'modal' }} />
+        <Stack.Screen name="holerite" options={{ ...header, title: 'Conferir holerite', presentation: 'modal' }} />
         <Stack.Screen name="feriado-novo" options={sheet} />
         <Stack.Screen name="ajustes/index" options={{ ...header, title: 'Ajustes' }} />
         <Stack.Screen name="ajustes/periodo" options={{ ...header, title: 'Período' }} />

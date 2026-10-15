@@ -1,8 +1,7 @@
-import * as Haptics from 'expo-haptics';
-import { router, useLocalSearchParams } from 'expo-router';
+import { router } from 'expo-router';
 import { useSQLiteContext } from 'expo-sqlite';
-import { useEffect, useRef } from 'react';
-import { Alert, StyleSheet, View } from 'react-native';
+import { useEffect } from 'react';
+import { StyleSheet, View } from 'react-native';
 
 import { Banner, Button, Card, Icon, ProgressRing, Screen, StatusPill, Text } from '@/components/ui';
 import { PressableScale } from '@/components/ui/pressable-scale';
@@ -15,38 +14,28 @@ import { goalForDate } from '@/domain/balance';
 import { forecastGoal } from '@/domain/forecast';
 import { periodDates, periodLabel, periodRangeLabel } from '@/domain/period';
 import { simpleGrossCents } from '@/domain/salary';
-import { actionsByState, deriveDayState, type DayAction } from '@/domain/state-machine';
-import { floorToMinute, HOUR, MINUTE, toDateKey } from '@/domain/time';
+import { deriveDayState, type DayState } from '@/domain/state-machine';
+import { HOUR, MINUTE, toDateKey } from '@/domain/time';
 import { MIN_REST_MS } from '@/domain/validation';
 import { summarizeWorkday } from '@/domain/workday';
 import { countIncompleteWorkdays, getOpenWorkday, listRecentWorkdays } from '@/db/workday-repo';
 import { formatDuration, formatLongDay, formatMoney, formatShortDate, formatTime } from '@/lib/format';
-import { clearDayOffs, performDayAction } from '@/services/punch-service';
+import { clearDayOffs } from '@/services/punch-service';
 import { updateQuickActions } from '@/services/quick-actions';
 import { useSettings } from '@/stores/settings-store';
-import { showToast } from '@/stores/ui-store';
 import { minTouch, spacing } from '@/theme';
 
 import { LiveClock } from './live-clock';
-import { PunchButton } from './punch-button';
-import { QuickAgo } from './quick-ago';
 
-const toastMessage: Record<DayAction, string> = {
-  startDay: 'Dia iniciado às',
-  pause: 'Pausado às',
-  resume: 'Voltou às',
-  endDay: 'Dia encerrado às',
+// O ponto oficial é batido no app da empresa; aqui o usuário só anota o horário que ele mostrou
+// para conferir as horas e o salário.
+
+const entryLabel: Record<DayState, string> = {
+  off: 'Anotar entrada',
+  working: 'Anotar saída',
+  break: 'Anotar volta do intervalo',
 };
 
-const DEBOUNCE_MS = 3000; // R7
-
-/** R7: ignora toques repetidos logo após bater o ponto */
-function tryAcquire(lastPress: { current: number }): boolean {
-  const t = Date.now();
-  if (t - lastPress.current < DEBOUNCE_MS) return false;
-  lastPress.current = t;
-  return true;
-}
 const OPEN_ALERT_MS = 16 * HOUR;
 
 export function Today() {
@@ -56,7 +45,6 @@ export function Today() {
   const today = toDateKey(now);
   const period = useCurrentPeriod();
   const { stats } = usePeriodStats(period);
-  const lastPress = useRef(0);
 
   const { data } = useDbQuery(
     async (d) => ({
@@ -72,7 +60,6 @@ export function Today() {
 
   const open = data?.open ?? null;
   const state = deriveDayState(open?.punches ?? null);
-  const actions = actionsByState[state];
 
   // Jornada mostrada: a aberta, ou a última se ela começou ou terminou hoje
   const lastClosed = data?.recent.find((w) => w.status === 'closed') ?? null;
@@ -99,47 +86,17 @@ export function Today() {
   const realGoal = goalForDate(today, settings.dailyGoal, { isNonWorkingDay: !!todayDayOff || !!holiday });
   const forecast = forecastGoal(summary?.workedMs ?? 0, realGoal, state, now);
 
-  // Menor horário aceito para bater "há X min": depois da última batida (ou do fim da última jornada)
-  const minPunchAt = open?.punches.at(-1)?.at ?? lastEnd ?? null;
+  // Nada anotado hoje: quem copia tudo no fim do dia prefere cadastrar a jornada inteira de uma vez
+  const nothingToday = state === 'off' && !shown;
 
   // Atalhos do ícone acompanham o estado do dia
   useEffect(() => {
     if (data) updateQuickActions(state);
   }, [data, state]);
 
-  // Ação disparada por um atalho do ícone (/?acao=bater | encerrar), executada uma vez
-  const { acao } = useLocalSearchParams<{ acao?: string }>();
-  const handledAction = useRef<string | null>(null);
-  useEffect(() => {
-    if (!data || !acao || handledAction.current === acao) return;
-    handledAction.current = acao;
-    router.setParams({ acao: undefined });
-    if (acao === 'bater') act(actions.primary);
-    else if (acao === 'encerrar' && actions.secondary) act('endDay');
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [data, acao]);
-
-  async function act(action: DayAction, at?: number) {
-    if (!tryAcquire(lastPress)) return;
-    try {
-      const result = await performDayAction(db, action, at !== undefined ? { at, source: 'retro' } : undefined);
-      const punch = (await db.getFirstAsync<{ at: number }>('SELECT at FROM punch WHERE id = ?', result.punchId))!;
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
-      showToast(`${toastMessage[action]} ${formatTime(punch.at)}`, {
-        actions: [
-          { label: 'Ajustar', onPress: () => router.push(`/batida/${result.punchId}`) },
-          { label: 'Desfazer', onPress: () => result.undo() },
-        ],
-      });
-    } catch (e) {
-      lastPress.current = 0;
-      Alert.alert('Não foi possível bater o ponto', (e as Error).message);
-    }
-  }
-
   async function workAnyway() {
     await clearDayOffs(db, [today]);
-    await act('startDay');
+    router.push('/bater');
   }
 
   return (
@@ -173,7 +130,7 @@ export function Today() {
           tone="warning"
           icon="schedule"
           title={`Jornada aberta há ${formatDuration(openForMs)}`}
-          description="Esqueceu de encerrar o dia?"
+          description="Faltou anotar a saída?"
           actionLabel="Revisar"
           onPress={() => router.push(`/jornada/${open.id}`)}
         />
@@ -201,30 +158,26 @@ export function Today() {
           <Button label="Trabalhar mesmo assim" variant="ghost" size="sm" onPress={workAnyway} />
         </Card>
       ) : (
-        <>
-          <PunchButton
-            state={state}
-            onPress={() => act(actions.primary)}
-            onLongPress={() => router.push({ pathname: '/bater', params: { action: actions.primary } })}
-          />
-          {actions.secondary ? (
-            <Button label="Encerrar dia" icon="stop" variant="secondary" block onPress={() => act('endDay')} />
-          ) : (
-            <Button
-              label="Marcar folga hoje"
-              icon="beach_access"
-              variant="ghost"
-              onPress={() => router.push({ pathname: '/folga', params: { dates: today } })}
-            />
-          )}
-          <QuickAgo
-            label={state === 'off' ? 'Comecei há' : state === 'working' ? 'Pausei há' : 'Voltei há'}
-            now={now}
-            minAt={minPunchAt}
-            onPick={(minutes) => act(actions.primary, floorToMinute(Date.now() - minutes * MINUTE))}
-            onMore={() => router.push({ pathname: '/bater', params: { action: actions.primary } })}
-          />
-        </>
+        <View style={styles.actions}>
+          <Button label={entryLabel[state]} icon="edit" size="lg" block onPress={() => router.push('/bater')} />
+          {nothingToday ? (
+            <>
+              <Button
+                label="Anotar o dia inteiro"
+                icon="view_timeline"
+                variant="secondary"
+                block
+                onPress={() => router.push({ pathname: '/jornada/nova', params: { date: today } })}
+              />
+              <Button
+                label="Marcar folga hoje"
+                icon="beach_access"
+                variant="ghost"
+                onPress={() => router.push({ pathname: '/folga', params: { dates: today } })}
+              />
+            </>
+          ) : null}
+        </View>
       )}
 
       {state === 'off' && lastClosed && lastEnd !== null && shown !== lastClosed ? (
@@ -314,4 +267,5 @@ const styles = StyleSheet.create({
   cardHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: spacing.sm },
   totals: { marginTop: spacing.md },
   gapSm: { gap: spacing.xs },
+  actions: { gap: spacing.sm },
 });

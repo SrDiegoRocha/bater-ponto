@@ -6,16 +6,15 @@ import type { DayState } from '@/domain/state-machine';
 // Sem módulo nativo (Expo Go) as chamadas viram no-op.
 
 const primaryTitle: Record<DayState, string> = {
-  off: 'Iniciar dia',
-  working: 'Pausar',
-  break: 'Voltar ao trabalho',
+  off: 'Anotar entrada',
+  working: 'Anotar saída',
+  break: 'Anotar volta',
 };
 
 export function updateQuickActions(state: DayState): void {
   QuickActions.setItems([
-    { id: 'punch', title: primaryTitle[state], icon: 'time', params: { href: '/?acao=bater' } },
-    ...(state !== 'off' ? [{ id: 'end', title: 'Encerrar dia', icon: 'pause', params: { href: '/?acao=encerrar' } }] : []),
-    { id: 'manual', title: 'Registrar jornada', icon: 'compose', params: { href: '/jornada/nova' } },
+    { id: 'punch', title: primaryTitle[state], icon: 'time', params: { href: '/bater' } },
+    { id: 'manual', title: 'Anotar o dia inteiro', icon: 'compose', params: { href: '/jornada/nova' } },
     { id: 'summary', title: 'Resumo do período', icon: 'home', params: { href: '/resumo' } },
   ]).catch(() => {});
 }

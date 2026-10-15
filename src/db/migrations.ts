@@ -70,6 +70,18 @@ const steps: ((db: SQLiteDatabase) => Promise<void>)[] = [
       );
     `);
   },
+
+  // v2 → v3: conferência do holerite (um por período)
+  async (db) => {
+    await db.execAsync(`
+      CREATE TABLE payslip (
+        period_start  TEXT PRIMARY KEY NOT NULL,
+        period_end    TEXT NOT NULL,
+        data          TEXT NOT NULL,
+        updated_at    INTEGER NOT NULL
+      );
+    `);
+  },
 ];
 
 export const DATABASE_NAME = 'bater-ponto.db';

@@ -1,6 +1,7 @@
 import type { SQLiteDatabase } from 'expo-sqlite';
 
 import type { BackupData } from '@/domain/backup-schema';
+import { EMPTY_PAYSLIP } from '@/domain/payslip';
 
 import { DEVICE_ONLY_SETTINGS } from './settings-repo';
 
@@ -21,6 +22,9 @@ export async function exportData(db: SQLiteDatabase): Promise<BackupData> {
     year: number | null; name: string | null; holiday_key: string | null;
   }>('SELECT * FROM holiday_override');
   const templates = await db.getAllAsync<{ id: string; name: string; shifts: string }>('SELECT id, name, shifts FROM shift_template ORDER BY created_at');
+  const payslips = await db.getAllAsync<{ period_start: string; period_end: string; data: string }>(
+    'SELECT period_start, period_end, data FROM payslip ORDER BY period_start',
+  );
   const settingRows = await db.getAllAsync<{ key: string; value: string }>('SELECT key, value FROM setting');
 
   const settings: Record<string, unknown> = {};
@@ -57,6 +61,11 @@ export async function exportData(db: SQLiteDatabase): Promise<BackupData> {
       holidayKey: o.holiday_key,
     })),
     templates: templates.map((t) => ({ id: t.id, name: t.name, shifts: JSON.parse(t.shifts) })),
+    payslips: payslips.map((p) => ({
+      periodStart: p.period_start,
+      periodEnd: p.period_end,
+      values: { ...EMPTY_PAYSLIP, ...JSON.parse(p.data) },
+    })),
     settings,
   };
 }
@@ -68,6 +77,7 @@ async function wipe(db: SQLiteDatabase, run: (sql: string, ...params: (string | 
   await run('DELETE FROM day_off');
   await run('DELETE FROM holiday_override');
   await run('DELETE FROM shift_template');
+  await run('DELETE FROM payslip');
   const keep = DEVICE_ONLY_SETTINGS.map(() => '?').join(',');
   await run(`DELETE FROM setting WHERE key NOT IN (${keep})`, ...DEVICE_ONLY_SETTINGS);
 }
@@ -107,6 +117,12 @@ export async function importData(db: SQLiteDatabase, data: BackupData): Promise<
     }
     for (const t of data.templates) {
       await run('INSERT INTO shift_template (id, name, shifts, created_at) VALUES (?, ?, ?, ?)', t.id, t.name, JSON.stringify(t.shifts), now);
+    }
+    for (const p of data.payslips) {
+      await run(
+        'INSERT INTO payslip (period_start, period_end, data, updated_at) VALUES (?, ?, ?, ?)',
+        p.periodStart, p.periodEnd, JSON.stringify(p.values), now,
+      );
     }
     for (const [key, value] of Object.entries(data.settings)) {
       if ((DEVICE_ONLY_SETTINGS as readonly string[]).includes(key)) continue;

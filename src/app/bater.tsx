@@ -1,9 +1,9 @@
 import { useLocalSearchParams } from 'expo-router';
 
 import type { DayAction } from '@/domain/state-machine';
-import { RetroPunch } from '@/screens/retro-punch';
+import { PunchEntry } from '@/screens/punch-entry';
 
-export default function RetroPunchRoute() {
+export default function PunchEntryRoute() {
   const { action } = useLocalSearchParams<{ action?: DayAction }>();
-  return <RetroPunch initialAction={action} />;
+  return <PunchEntry initialAction={action} />;
 }

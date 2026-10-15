@@ -65,10 +65,10 @@ export function Onboarding() {
             <BrandSymbol size={120} />
             <BrandLockup size={36} />
             <Text variant="title2" align="center">
-              Bata o ponto em um toque.
+              Confira se o seu ponto bate.
             </Text>
             <Text variant="body" color="textMuted" align="center">
-              Registre entradas, pausas e o fim do dia, mesmo quando a jornada passa da meia-noite. Seus dados ficam só no seu
+              Anote os horários que você bate no app da empresa e confira se as horas e o salário estão certos. Seus dados ficam só no seu
               celular.
             </Text>
           </View>

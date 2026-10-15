@@ -1,7 +1,9 @@
+import type { PayslipValues } from './payslip';
+
 // Formato do arquivo de backup (PLANEJAMENTO.md §3.9). Versionado, validado antes de qualquer gravação.
 
 export const BACKUP_APP_ID = 'bater-ponto';
-export const BACKUP_SCHEMA_VERSION = 2;
+export const BACKUP_SCHEMA_VERSION = 3;
 
 export type BackupWorkday = { id: string; refDate: string; status: 'open' | 'closed' | 'incomplete'; note: string | null };
 export type BackupPunch = {
@@ -28,6 +30,8 @@ export type BackupHolidayOverride = {
 
 export type BackupTemplate = { id: string; name: string; shifts: { start: number; end: number }[] };
 
+export type BackupPayslip = { periodStart: string; periodEnd: string; values: PayslipValues };
+
 export type BackupData = {
   workdays: BackupWorkday[];
   punches: BackupPunch[];
@@ -35,6 +39,8 @@ export type BackupData = {
   holidayOverrides: BackupHolidayOverride[];
   /** v2+ */
   templates: BackupTemplate[];
+  /** v3+ */
+  payslips: BackupPayslip[];
   settings: Record<string, unknown>;
 };
 
@@ -126,13 +132,29 @@ function validTemplate(t: unknown): t is BackupTemplate {
   );
 }
 
-/** Migra arquivos de versões antigas para a atual (B6) */
-function migrate(file: Record<string, unknown>): Record<string, unknown> {
-  // v1 → v2: ainda não havia escalas modelo
-  if (file.schemaVersion === 1 && isObj(file.data)) {
-    return { ...file, schemaVersion: 2, data: { ...file.data, templates: [] } };
+const PAYSLIP_HOURS = ['extraMs', 'extraDoubleMs', 'nightMs'] as const;
+const PAYSLIP_MONEY = ['extraCents', 'extraDoubleCents', 'nightCents', 'dsrCents'] as const;
+
+function validPayslip(p: unknown): p is BackupPayslip {
+  if (!isObj(p) || !isStr(p.periodStart) || !DATE_RE.test(p.periodStart) || !isStr(p.periodEnd) || !DATE_RE.test(p.periodEnd)) {
+    return false;
   }
-  return file;
+  const v = p.values;
+  return (
+    isObj(v) &&
+    (v.hoursFormat === 'decimal' || v.hoursFormat === 'clock') &&
+    [...PAYSLIP_HOURS, ...PAYSLIP_MONEY].every((k) => isNullable(v[k], isNum))
+  );
+}
+
+/** Migra arquivos de versões antigas para a atual (B6), um passo por versão */
+function migrate(file: Record<string, unknown>): Record<string, unknown> {
+  let f = file;
+  // v1 → v2: ainda não havia escalas modelo
+  if (f.schemaVersion === 1 && isObj(f.data)) f = { ...f, schemaVersion: 2, data: { ...f.data, templates: [] } };
+  // v2 → v3: ainda não havia holerites conferidos
+  if (f.schemaVersion === 2 && isObj(f.data)) f = { ...f, schemaVersion: 3, data: { ...f.data, payslips: [] } };
+  return f;
 }
 
 export function parseBackup(text: string): ParseResult {
@@ -154,7 +176,7 @@ export function parseBackup(text: string): ParseResult {
   const data = file.data;
   if (!isObj(data)) return { ok: false, error: 'Backup sem dados.' };
 
-  const { workdays, punches, dayOffs, holidayOverrides, templates, settings } = data;
+  const { workdays, punches, dayOffs, holidayOverrides, templates, payslips, settings } = data;
   if (!Array.isArray(workdays) || !workdays.every(validWorkday)) return { ok: false, error: 'Jornadas inválidas no backup.' };
   if (!Array.isArray(punches) || !punches.every(validPunch)) return { ok: false, error: 'Batidas inválidas no backup.' };
   if (!Array.isArray(dayOffs) || !dayOffs.every(validDayOff)) return { ok: false, error: 'Folgas inválidas no backup.' };
@@ -162,6 +184,7 @@ export function parseBackup(text: string): ParseResult {
     return { ok: false, error: 'Feriados inválidos no backup.' };
   }
   if (!Array.isArray(templates) || !templates.every(validTemplate)) return { ok: false, error: 'Escalas inválidas no backup.' };
+  if (!Array.isArray(payslips) || !payslips.every(validPayslip)) return { ok: false, error: 'Holerites inválidos no backup.' };
   if (!isObj(settings)) return { ok: false, error: 'Configurações inválidas no backup.' };
 
   // Integridade: toda batida pertence a uma jornada do arquivo; ids únicos
@@ -178,7 +201,7 @@ export function parseBackup(text: string): ParseResult {
     schemaVersion: BACKUP_SCHEMA_VERSION,
     appVersion: isStr(file.appVersion) ? file.appVersion : '?',
     createdAt: isNum(file.createdAt) ? file.createdAt : 0,
-    data: { workdays, punches, dayOffs, holidayOverrides, templates, settings },
+    data: { workdays, punches, dayOffs, holidayOverrides, templates, payslips, settings },
   };
   return {
     ok: true,

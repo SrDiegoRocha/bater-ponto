@@ -35,6 +35,8 @@
 
 ## Visão geral
 
+O ponto oficial é batido no app da empresa; o **Bater Ponto** é o caderno de conferência: o usuário anota os mesmos horários aqui e confere se as horas trabalhadas e o salário pago batem.
+
 O **Bater Ponto** é um app para quem tem jornadas **fragmentadas** e que **atravessam a meia-noite**, casos que os apps de ponto tradicionais tratam mal. Exemplos reais de um único dia de trabalho:
 
 ```
@@ -49,7 +51,7 @@ O usuário marca explicitamente o **início do dia** e o **fim do dia**, então 
 
 **Pilares**
 
-1. **Bater ponto em 1 toque.** A tela Hoje gira em torno de um único botão que muda conforme o estado do dia.
+1. **Anotar o ponto em segundos.** A tela Hoje gira em torno de "Anotar entrada/saída": digita-se o horário mostrado no app da empresa (4 dígitos) ou o dia inteiro de uma vez.
 2. **Entender o período num relance.** Horas trabalhadas, intervalos, folgas, feriados, banco de horas e salário estimado do período configurado (ex.: dia 21 a dia 20).
 3. **Confiável.** Toda batida pode ser corrigida em poucos toques. Regras impedem dados impossíveis (sobreposição, horário no futuro, etc.).
 4. **Premium e rápido.** Design system único, animações com propósito, feedback háptico e metas de performance explícitas.
@@ -80,14 +82,15 @@ O usuário marca explicitamente o **início do dia** e o **fim do dia**, então 
 O que já existe hoje:
 
 - ✅ **Onboarding** em 4 passos: período, meta diária, valor da hora e opção de restaurar um backup.
-- ✅ **Hoje**: botão de estado (Iniciar dia → Pausar → Voltar → Encerrar), cronômetro ao vivo, anel da meta, linha do tempo tocável, toast com **Ajustar** e **Desfazer**, toque longo para bater com outro horário, avisos de jornada incompleta/aberta há muito tempo, folga e feriado do dia, descanso desde a última jornada.
+- ✅ **Hoje**: "Anotar entrada/saída" com o horário digitado (tipo da batida sugerido pelo estado do dia), "Anotar o dia inteiro", cronômetro, anel da meta, linha do tempo tocável, toast com **Desfazer**, avisos de jornada incompleta/aberta há muito tempo, folga e feriado do dia, descanso desde a última jornada.
 - ✅ **Editor de horário**: −5/−1/+1/+5 min (segurar repete), relógio e calendário nativos, limites visíveis, prévia ao vivo dos totais, voltar ao original, excluir batida.
 - ✅ **Histórico**: calendário do período com cores por estado e feriados, seleção múltipla para folgas, lista de jornadas com mini-timeline, cadastro manual de jornada.
 - ✅ **Detalhe da jornada**: totais (trabalhado, intervalo, amplitude, noturno), timeline editável, adicionar turno ou batida, interjornada antes/depois, observação, excluir com desfazer.
-- ✅ **Facilidades**: previsão de saída no anel, "voltei há 5/15/30 min", escalas modelo, preencher vários dias de uma vez, mover a jornada inteira ±X min, filtros no histórico, compartilhar resumo em texto, trocar de período deslizando, atalhos no ícone do app e backup automático semanal.
+- ✅ **Facilidades**: previsão de saída no anel, escalas modelo, preencher vários dias de uma vez, mover a jornada inteira ±X min, filtros no histórico, compartilhar resumo em texto, trocar de período deslizando, atalhos no ícone do app e backup automático semanal.
 - ✅ **Copiar jornada** para um ou vários dias (mantém os horários, inclusive a madrugada), com atalho "copiar a última jornada" direto no calendário.
 - ✅ **Folgas** (folga, férias, atestado, feriado) em um ou vários dias, com proteção para dias que já têm jornada.
 - ✅ **Resumo**: cards com números animados e comparação com o período anterior, gráfico de horas por dia (com a meta) e por dia da semana, 11 indicadores de detalhe e botão de exportar PDF.
+- ✅ **Conferir holerite** (CLT): por período, digita-se o que o holerite pagou (horas extras 50%/100%, adicional noturno, DSR; horas em decimal ou relógio) e o app compara com o calculado pelas batidas, apontando o que faltou pagar. Fica salvo e entra no backup (formato v3).
 - ✅ **Salário**: modo simples ou **modo CLT** (extras 50%/100%, domingo, adicional noturno com hora reduzida, DSR, INSS e IRRF 2026 com a isenção até R$ 5.000), recibo detalhado e simulador "E se?" com sliders.
 - ✅ **Espelho de ponto em PDF**: tabela dia a dia (batidas, +1, horários editados, folgas, feriados, saldo), totais e salário opcional, compartilhado pelo Android.
 - ✅ **Feriados**: ativar/desativar por ano ou para sempre, pontos facultativos e feriados próprios (recorrentes ou não).
@@ -140,7 +143,7 @@ As regras completas (com códigos R1–R12, F1–F6, P1–P5, H1–H7, E1–E5, 
 - Sem batidas no futuro (tolerância de 1 min para diferença de relógio).
 - Jornadas não se sobrepõem; jornada aberta há mais de 24h gera alerta "esqueceu de encerrar?".
 - Toque duplo acidental: debounce + "Desfazer".
-- Toque longo no botão principal permite bater com outro horário (retroativo).
+- Horário anotado é a ocorrência mais recente daquele HH:MM: "23:50" anotado às 00:30 cai no dia anterior.
 
 **Edição de horários** (ex.: pausou às 15:45, mas foi às 15:43)
 - Logo após bater o ponto, um toast oferece **"Ajustar"**. Corrigir leva 3 toques: *Ajustar → −1 −1 → Salvar*.
@@ -311,7 +314,7 @@ Wordmark: `bater ponto.` em Inter Bold, minúsculas, com o **ponto final sempre 
 │   │   ├── _layout.tsx        # Providers: gestos, SQLite+migrações, tema, splash, fontes
 │   │   └── (tabs)/            # Hoje · Histórico · Resumo · Salário (NativeTabs)
 │   ├── screens/               # Corpo das telas (rotas só renderizam): today/, history, summary, salary,
-│   │                          #   workday-detail, punch-editor, retro-punch, day-off-sheet, settings, onboarding…
+│   │                          #   workday-detail, punch-editor, punch-entry, day-off-sheet, settings, onboarding…
 │   ├── services/              # Casos de uso: bater ponto, editar, desfazer, folgas, backup
 │   ├── hooks/                 # useDbQuery (recarrega a cada escrita), useNow, usePeriodStats
 │   ├── components/
@@ -358,6 +361,7 @@ Wordmark: `bater ponto.` em Inter Bold, minúsculas, com o **ponto final sempre 
 |---|---|
 | `workday` | Jornada: `ref_date`, `status` (`open`/`closed`/`incomplete`), observação |
 | `punch` | Batida: `kind` (`in`/`out`), `at` (epoch ms), `tz`, `is_day_start`, `is_day_end`, `original_at` (se editada), `source` (`live`/`retro`/`manual`) |
+| `payslip` | Holerite conferido de um período: `period_start` (chave), `period_end`, `data` (JSON com horas e valores informados) |
 | `day_off` | Folga por data: `kind` (`folga`/`ferias`/`atestado`/`feriado`), observação |
 | `holiday_override` | Só o que o usuário mudou: feriados próprios e feriados nacionais desativados |
 | `setting` | Configurações chave/valor em JSON, com padrões no código |
