@@ -3,9 +3,10 @@ import { useFonts } from 'expo-font';
 import { Stack } from 'expo-router/stack';
 import { DarkTheme, DefaultTheme, ThemeProvider as NavigationThemeProvider } from 'expo-router/react-navigation';
 import * as SplashScreen from 'expo-splash-screen';
-import { SQLiteProvider } from 'expo-sqlite';
+import { SQLiteProvider, type SQLiteDatabase } from 'expo-sqlite';
 import { StatusBar } from 'expo-status-bar';
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { Text, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
 import { DATABASE_NAME, migrateDbIfNeeded } from '@/db/migrations';
@@ -21,7 +22,52 @@ if (Constants.executionEnvironment !== ExecutionEnvironment.StoreClient) {
   SplashScreen.setOptions({ duration: 300, fade: true });
 }
 
+// Fora do componente de propósito: o SQLiteProvider fecha e reabre o banco sempre que a identidade
+// de onInit muda, e um re-render (ex.: fontes carregando) derrubaria a conexão no meio da migração.
+async function initDatabase(db: SQLiteDatabase) {
+  await migrateDbIfNeeded(db);
+  await useSettingsStore.getState().hydrate(db);
+}
+
 export default function RootLayout() {
+  // Sem isto, um erro no onInit fica escondido atrás do splash para sempre
+  const [dbError, setDbError] = useState<Error | null>(null);
+  useEffect(() => {
+    if (dbError) {
+      console.error('Falha ao abrir o banco', dbError);
+      SplashScreen.hide();
+    }
+  }, [dbError]);
+
+  if (dbError) {
+    return (
+      <View style={{ flex: 1, justifyContent: 'center', padding: 24, backgroundColor: '#fff' }}>
+        <Text style={{ fontSize: 18, fontWeight: '600', marginBottom: 8 }}>Não foi possível abrir o banco</Text>
+        <Text selectable>{String(dbError.message ?? dbError)}</Text>
+      </View>
+    );
+  }
+
+  return (
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <SQLiteProvider
+        databaseName={DATABASE_NAME}
+        onInit={initDatabase}
+        onError={setDbError}
+      >
+        <ThemeProvider>
+          <AppNavigator />
+        </ThemeProvider>
+      </SQLiteProvider>
+    </GestureHandlerRootView>
+  );
+}
+
+function AppNavigator() {
+  const { scheme, colors } = useTheme();
+
+  // Fica abaixo do SQLiteProvider de propósito: o memo dele ignora `children`, então estado do
+  // RootLayout (como fontes carregadas) nunca chegaria aqui depois que o banco abre.
   // Em builds as fontes já vêm embutidas pelo config plugin (no-op); no Expo Go são carregadas aqui.
   const [fontsLoaded, fontError] = useFonts({
     Inter_400Regular: require('../../assets/fonts/Inter_400Regular.ttf'),
@@ -29,26 +75,7 @@ export default function RootLayout() {
     Inter_600SemiBold: require('../../assets/fonts/Inter_600SemiBold.ttf'),
     Inter_700Bold: require('../../assets/fonts/Inter_700Bold.ttf'),
   });
-
-  return (
-    <GestureHandlerRootView style={{ flex: 1 }}>
-      <SQLiteProvider
-        databaseName={DATABASE_NAME}
-        onInit={async (db) => {
-          await migrateDbIfNeeded(db);
-          await useSettingsStore.getState().hydrate(db);
-        }}
-      >
-        <ThemeProvider>
-          <AppNavigator ready={fontsLoaded || !!fontError} />
-        </ThemeProvider>
-      </SQLiteProvider>
-    </GestureHandlerRootView>
-  );
-}
-
-function AppNavigator({ ready }: { ready: boolean }) {
-  const { scheme, colors } = useTheme();
+  const ready = fontsLoaded || !!fontError;
 
   useEffect(() => {
     if (ready) SplashScreen.hide();
