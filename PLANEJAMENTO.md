@@ -873,6 +873,21 @@ Ilustrações dos estados vazios · Animação de abertura (splash → anel) · 
 > - **EAS**: projeto `@diegorocha/bater-ponto`, pacote `com.diegorocha.baterponto`. Perfis `development` (dev client, APK), `preview` (APK para instalar direto) e `production` (AAB para a Play Store, versionCode automático e remoto). Keystore gerenciada pelo EAS.
 Meta por dia da semana · Bloqueio por biometria (3.10) · Primeiro build de desenvolvimento/produção com EAS (`eas build --platform android`).
 
+### Facilidades (pós-fase 3, 14/10/2026)
+
+| # | Facilidade | Onde |
+|---|---|---|
+| FA1 | **Previsão de saída**: "Faltam 1h20 · completa a meta às 18:40" / "se voltar agora, completa às…" / "Meta batida · +40min" | Hoje, abaixo do anel |
+| FA2 | **"Pausei/Voltei/Comecei há 5 · 15 · 30 min"**: bate o ponto no passado com 1 toque (só mostra opções depois da última batida); "Outro" abre o editor | Hoje, abaixo do botão |
+| FA3 | **Preencher dias selecionados**: seleção múltipla no calendário → "Preencher" com uma escala ou uma jornada recente | Histórico |
+| FA4 | **Escalas modelo**: turnos salvos com nome, aplicáveis a vários dias, ao cadastrar jornada ("Usar escala") e criadas a partir de uma jornada ("Salvar como escala"). Entram no backup (formato v2; arquivos v1 são migrados) | Ajustes → Escalas |
+| FA5 | **Atalhos no ícone do app** (expo-quick-actions): ação principal do momento (Iniciar dia / Pausar / Voltar), Encerrar dia, Registrar jornada, Resumo. Precisa de build próprio | Tela inicial do Android |
+| FA6 | **Mover jornada inteira** ±1/5/15 min, guardando os horários originais e respeitando vizinhas/futuro | Detalhe da jornada |
+| FA7 | **Compartilhar resumo em texto** (horas, banco, folgas, salário) | Resumo, ícone de compartilhar |
+| FA8 | **Filtros no histórico**: com extra, incompletas, feriados, noturnas | Histórico |
+| FA9 | **Backup automático semanal** no próprio app (4 cópias), com restauração pela lista. Configuração só do aparelho | Ajustes → Dados |
+| FA10 | **Trocar de período deslizando** para os lados | Histórico (calendário), Resumo (cards), Salário (seletor) |
+
 ---
 
 ## 12. Sugestões extras (para você aprovar)

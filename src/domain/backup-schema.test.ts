@@ -8,6 +8,7 @@ const data: BackupData = {
   ],
   dayOffs: [{ date: '2026-10-11', kind: 'folga', note: 'domingo' }],
   holidayOverrides: [{ id: 'h1', kind: 'disabled', date: null, monthDay: null, year: 2026, name: null, holidayKey: 'aparecida' }],
+  templates: [{ id: 't1', name: 'Escala A', shifts: [{ start: 480, end: 660 }] }],
   settings: { periodStartDay: 21, hourlyRate: 25 },
 };
 
@@ -35,6 +36,14 @@ describe('backup', () => {
     const result = parseBackup(text);
     expect(result.ok).toBe(false);
     if (!result.ok) expect(result.error).toContain(message);
+  });
+
+  it('B6: arquivo v1 (sem escalas) é migrado', () => {
+    const { templates: _t, ...v1data } = data;
+    const v1 = { app: 'bater-ponto', schemaVersion: 1, appVersion: '1.0.0', createdAt: 1, data: v1data };
+    const result = parseBackup(JSON.stringify(v1));
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(result.file.data.templates).toEqual([]);
   });
 
   it('rejeita batida sem jornada', () => {

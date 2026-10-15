@@ -3,6 +3,7 @@ import { useSQLiteContext } from 'expo-sqlite';
 import { useMemo, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
+import { PeriodSwipe } from '@/components/period/period-swipe';
 import { PeriodSwitcher } from '@/components/period/period-switcher';
 import { Button, Card, ChoiceChips, Divider, SliderRow, SwitchRow, Text } from '@/components/ui';
 import { Screen } from '@/components/ui/screen';
@@ -61,7 +62,11 @@ export function Salary() {
 
   return (
     <Screen title="Salário" keyboardShouldPersistTaps="handled">
-      <PeriodSwitcher period={period} />
+      <PeriodSwipe>
+        <View>
+          <PeriodSwitcher period={period} />
+        </View>
+      </PeriodSwipe>
 
       <Card style={styles.gap}>
         <Text variant="micro" color="textMuted">

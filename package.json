@@ -17,6 +17,7 @@
     "expo-linking": "~57.0.13",
     "expo-local-authentication": "~57.0.3",
     "expo-print": "~57.0.2",
+    "expo-quick-actions": "^6.0.2",
     "expo-router": "~57.0.27",
     "expo-screen-capture": "~57.0.4",
     "expo-sharing": "~57.0.23",

@@ -1,8 +1,11 @@
 import { router } from 'expo-router';
-import { StyleSheet } from 'react-native';
+import { Share, StyleSheet, View } from 'react-native';
 
 import { BarChart, type Bar } from '@/components/charts/bar-chart';
+import { PeriodSwipe } from '@/components/period/period-swipe';
 import { PeriodSwitcher } from '@/components/period/period-switcher';
+import { computeCltPay } from '@/domain/clt';
+import { buildSummaryText } from '@/lib/summary-text';
 import { Card, Divider, EmptyState, Icon, ListRow, Screen, SectionHeader, StatCard, StatGrid, Text, type StatDelta } from '@/components/ui';
 import { PressableScale } from '@/components/ui/pressable-scale';
 import { usePeriodStats, useSelectedPeriod } from '@/hooks/use-period-stats';
@@ -42,29 +45,55 @@ export function Summary() {
   const settings = useSettings();
   const period = useSelectedPeriod();
   const previous = shiftPeriod(period, -1, settings.periodStartDay);
-  const { stats } = usePeriodStats(period);
+  const { stats, workdays, dayOffs, holidays, now } = usePeriodStats(period);
   const { stats: prev } = usePeriodStats(previous);
   const { hourlyRate, dailyGoal } = settings;
 
   const money = (ms: number) => simpleGrossCents(ms, hourlyRate);
 
+  function share() {
+    if (!stats) return;
+    let salary: { label: string; cents: number } | null = null;
+    if (hourlyRate > 0 && settings.salaryMode === 'clt') {
+      const b = computeCltPay({
+        period,
+        workdays,
+        dayOffs,
+        holidays,
+        now,
+        config: { ...settings, goal: settings.dailyGoal },
+      });
+      salary = { label: 'Salário líquido estimado', cents: b.net };
+    } else if (hourlyRate > 0) {
+      salary = { label: 'Salário bruto estimado', cents: money(stats.workedMs) };
+    }
+    Share.share({ message: buildSummaryText(period, stats, salary) }).catch(() => {});
+  }
+
   return (
     <Screen
       title="Resumo"
       headerRight={
-        <PressableScale
-          accessibilityRole="button"
-          accessibilityLabel="Exportar PDF"
-          onPress={() => router.push('/exportar')}
-          style={styles.iconButton}
-        >
-          <Icon name="picture_as_pdf" color="textMuted" />
-        </PressableScale>
+        <View style={styles.headerActions}>
+          <PressableScale accessibilityRole="button" accessibilityLabel="Compartilhar resumo" onPress={share} style={styles.iconButton}>
+            <Icon name="share" color="textMuted" />
+          </PressableScale>
+          <PressableScale
+            accessibilityRole="button"
+            accessibilityLabel="Exportar PDF"
+            onPress={() => router.push('/exportar')}
+            style={styles.iconButton}
+          >
+            <Icon name="picture_as_pdf" color="textMuted" />
+          </PressableScale>
+        </View>
       }
     >
       <PeriodSwitcher period={period} />
       {stats ? (
         <>
+          <PeriodSwipe>
+          <View>
           <StatGrid>
             <StatCard
               label="Trabalhadas"
@@ -125,6 +154,8 @@ export function Summary() {
               onPress={() => router.navigate('/salario')}
             />
           </StatGrid>
+          </View>
+          </PeriodSwipe>
 
           <SectionHeader title="Horas por dia" />
           <Card>
@@ -241,4 +272,5 @@ function weekdayBars(stats: PeriodStats): Bar[] {
 const styles = StyleSheet.create({
   list: { paddingVertical: spacing.xs },
   iconButton: { width: minTouch, height: minTouch, alignItems: 'center', justifyContent: 'center' },
+  headerActions: { flexDirection: 'row' },
 });

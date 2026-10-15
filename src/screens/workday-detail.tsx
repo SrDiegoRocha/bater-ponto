@@ -141,6 +141,24 @@ export function WorkdayDetail({ workdayId }: { workdayId: string }) {
               onPress={() => router.push({ pathname: '/copiar', params: { workdayId } })}
             />
           ) : null}
+          {workday.status === 'closed' && summary.isConsistent ? (
+            <Button
+              label="Salvar como escala"
+              icon="view_timeline"
+              variant="ghost"
+              block
+              onPress={() => router.push({ pathname: '/escala', params: { fromWorkday: workdayId } })}
+            />
+          ) : null}
+          {workday.punches.length > 0 ? (
+            <Button
+              label="Mover jornada inteira"
+              icon="swap_horiz"
+              variant="ghost"
+              block
+              onPress={() => router.push({ pathname: '/mover', params: { workdayId } })}
+            />
+          ) : null}
         </View>
       </Card>
 

@@ -7,9 +7,11 @@ import { SQLiteProvider, type SQLiteDatabase } from 'expo-sqlite';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useMemo, useState } from 'react';
 import { Text, View } from 'react-native';
+import { useQuickActionRouting } from 'expo-quick-actions/router';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
 import { DATABASE_NAME, migrateDbIfNeeded } from '@/db/migrations';
+import { runAutoBackupIfDue } from '@/services/backup-service';
 import { LockGate } from '@/components/lock/lock-gate';
 import { ToastHost } from '@/components/ui';
 import { useSettingsStore } from '@/stores/settings-store';
@@ -27,6 +29,8 @@ if (Constants.executionEnvironment !== ExecutionEnvironment.StoreClient) {
 async function initDatabase(db: SQLiteDatabase) {
   await migrateDbIfNeeded(db);
   await useSettingsStore.getState().hydrate(db);
+  // Backup semanal silencioso: não segura a abertura do app
+  runAutoBackupIfDue(db).catch(() => {});
 }
 
 export default function RootLayout() {
@@ -129,18 +133,29 @@ function AppNavigator() {
         <Stack.Screen name="turno" options={sheet} />
         <Stack.Screen name="exportar" options={sheet} />
         <Stack.Screen name="copiar" options={sheet} />
+        <Stack.Screen name="mover" options={sheet} />
+        <Stack.Screen name="aplicar" options={{ ...header, title: 'Preencher dias', presentation: 'modal' }} />
+        <Stack.Screen name="escala" options={{ ...header, title: 'Escala', presentation: 'modal' }} />
         <Stack.Screen name="feriado-novo" options={sheet} />
         <Stack.Screen name="ajustes/index" options={{ ...header, title: 'Ajustes' }} />
         <Stack.Screen name="ajustes/periodo" options={{ ...header, title: 'Período' }} />
         <Stack.Screen name="ajustes/jornada" options={{ ...header, title: 'Jornada' }} />
         <Stack.Screen name="ajustes/salario" options={{ ...header, title: 'Salário' }} />
+        <Stack.Screen name="ajustes/escalas" options={{ ...header, title: 'Escalas' }} />
         <Stack.Screen name="ajustes/feriados" options={{ ...header, title: 'Feriados' }} />
         <Stack.Screen name="ajustes/aparencia" options={{ ...header, title: 'Aparência' }} />
         <Stack.Screen name="ajustes/seguranca" options={{ ...header, title: 'Segurança' }} />
         <Stack.Screen name="ajustes/dados" options={{ ...header, title: 'Dados e backup' }} />
       </Stack>
+      <QuickActionRouting />
       <ToastHost />
       <LockGate />
     </NavigationThemeProvider>
   );
+}
+
+/** Atalhos do ícone do app: navega para o href do atalho tocado */
+function QuickActionRouting() {
+  useQuickActionRouting();
+  return null;
 }

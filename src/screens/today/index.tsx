@@ -1,7 +1,7 @@
 import * as Haptics from 'expo-haptics';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { useSQLiteContext } from 'expo-sqlite';
-import { useRef } from 'react';
+import { useEffect, useRef } from 'react';
 import { Alert, StyleSheet, View } from 'react-native';
 
 import { Banner, Button, Card, Icon, ProgressRing, Screen, StatusPill, Text } from '@/components/ui';
@@ -12,21 +12,24 @@ import { useDbQuery } from '@/hooks/use-db-query';
 import { useNow } from '@/hooks/use-now';
 import { useCurrentPeriod, usePeriodStats } from '@/hooks/use-period-stats';
 import { goalForDate } from '@/domain/balance';
+import { forecastGoal } from '@/domain/forecast';
 import { periodDates, periodLabel, periodRangeLabel } from '@/domain/period';
 import { simpleGrossCents } from '@/domain/salary';
 import { actionsByState, deriveDayState, type DayAction } from '@/domain/state-machine';
-import { HOUR, toDateKey } from '@/domain/time';
+import { floorToMinute, HOUR, MINUTE, toDateKey } from '@/domain/time';
 import { MIN_REST_MS } from '@/domain/validation';
 import { summarizeWorkday } from '@/domain/workday';
 import { countIncompleteWorkdays, getOpenWorkday, listRecentWorkdays } from '@/db/workday-repo';
 import { formatDuration, formatLongDay, formatMoney, formatShortDate, formatTime } from '@/lib/format';
 import { clearDayOffs, performDayAction } from '@/services/punch-service';
+import { updateQuickActions } from '@/services/quick-actions';
 import { useSettings } from '@/stores/settings-store';
 import { showToast } from '@/stores/ui-store';
 import { minTouch, spacing } from '@/theme';
 
 import { LiveClock } from './live-clock';
-import { PunchButton, PunchHint } from './punch-button';
+import { PunchButton } from './punch-button';
+import { QuickAgo } from './quick-ago';
 
 const toastMessage: Record<DayAction, string> = {
   startDay: 'Dia iniciado às',
@@ -92,10 +95,34 @@ export function Today() {
   const openForMs = open?.punches[0] ? now - open.punches[0].at : 0;
   const daysLeft = periodDates(period).filter((d) => d >= today).length;
 
-  async function act(action: DayAction) {
+  // Previsão de saída: meta real do dia (0 em folga/feriado = sem previsão)
+  const realGoal = goalForDate(today, settings.dailyGoal, { isNonWorkingDay: !!todayDayOff || !!holiday });
+  const forecast = forecastGoal(summary?.workedMs ?? 0, realGoal, state, now);
+
+  // Menor horário aceito para bater "há X min": depois da última batida (ou do fim da última jornada)
+  const minPunchAt = open?.punches.at(-1)?.at ?? lastEnd ?? null;
+
+  // Atalhos do ícone acompanham o estado do dia
+  useEffect(() => {
+    if (data) updateQuickActions(state);
+  }, [data, state]);
+
+  // Ação disparada por um atalho do ícone (/?acao=bater | encerrar), executada uma vez
+  const { acao } = useLocalSearchParams<{ acao?: string }>();
+  const handledAction = useRef<string | null>(null);
+  useEffect(() => {
+    if (!data || !acao || handledAction.current === acao) return;
+    handledAction.current = acao;
+    router.setParams({ acao: undefined });
+    if (acao === 'bater') act(actions.primary);
+    else if (acao === 'encerrar' && actions.secondary) act('endDay');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data, acao]);
+
+  async function act(action: DayAction, at?: number) {
     if (!tryAcquire(lastPress)) return;
     try {
-      const result = await performDayAction(db, action);
+      const result = await performDayAction(db, action, at !== undefined ? { at, source: 'retro' } : undefined);
       const punch = (await db.getFirstAsync<{ at: number }>('SELECT at FROM punch WHERE id = ?', result.punchId))!;
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
       showToast(`${toastMessage[action]} ${formatTime(punch.at)}`, {
@@ -166,6 +193,8 @@ export function Today() {
         </ProgressRing>
       </View>
 
+      <ForecastLine forecast={forecast} />
+
       {todayDayOff && state === 'off' ? (
         <Card style={styles.dayOffCard}>
           <Text variant="headline">Hoje é {dayOffLabel[todayDayOff].toLowerCase()} 🌴</Text>
@@ -188,7 +217,13 @@ export function Today() {
               onPress={() => router.push({ pathname: '/folga', params: { dates: today } })}
             />
           )}
-          <PunchHint />
+          <QuickAgo
+            label={state === 'off' ? 'Comecei há' : state === 'working' ? 'Pausei há' : 'Voltei há'}
+            now={now}
+            minAt={minPunchAt}
+            onPick={(minutes) => act(actions.primary, floorToMinute(Date.now() - minutes * MINUTE))}
+            onMore={() => router.push({ pathname: '/bater', params: { action: actions.primary } })}
+          />
         </>
       )}
 
@@ -247,7 +282,31 @@ export function Today() {
   );
 }
 
+function ForecastLine({ forecast }: { forecast: ReturnType<typeof forecastGoal> }) {
+  let text: string | null = null;
+  let color: 'textMuted' | 'work' = 'textMuted';
+  switch (forecast.kind) {
+    case 'working':
+      text = `Faltam ${formatDuration(forecast.remainingMs)} · completa a meta às ${formatTime(forecast.reachAt)}`;
+      break;
+    case 'break':
+      text = `Faltam ${formatDuration(forecast.remainingMs)} · se voltar agora, completa às ${formatTime(forecast.reachIfResumeNowAt)}`;
+      break;
+    case 'done':
+      text = forecast.overMs >= MINUTE ? `Meta batida · +${formatDuration(forecast.overMs)}` : 'Meta batida';
+      color = 'work';
+      break;
+  }
+  if (!text) return null;
+  return (
+    <Text variant="body" color={color} align="center" tabular style={styles.forecast} accessibilityLiveRegion="polite">
+      {text}
+    </Text>
+  );
+}
+
 const styles = StyleSheet.create({
+  forecast: { marginTop: -spacing.sm },
   hero: { alignItems: 'center', paddingVertical: spacing.md },
   ringContent: { alignItems: 'center', gap: spacing.sm },
   iconButton: { width: minTouch, height: minTouch, alignItems: 'center', justifyContent: 'center' },

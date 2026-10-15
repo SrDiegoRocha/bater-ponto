@@ -71,3 +71,55 @@ export async function eraseAllData(db: SQLiteDatabase): Promise<void> {
   await useSettingsStore.getState().hydrate(db);
   bumpData();
 }
+
+// ---- Backup automático silencioso -------------------------------------------------------------
+
+const AUTO_PREFIX = 'auto_';
+const AUTO_KEEP = 4;
+const AUTO_EVERY_MS = 7 * 24 * 60 * 60 * 1000;
+
+function backupsDir(): Directory {
+  const dir = new Directory(Paths.document, 'backups');
+  if (!dir.exists) dir.create();
+  return dir;
+}
+
+export type StoredBackup = { name: string; uri: string; kind: 'auto' | 'safety'; createdAt: number };
+
+/** Backups guardados no próprio app (automáticos e os feitos antes de restaurar/apagar), mais novos primeiro */
+export function listStoredBackups(): StoredBackup[] {
+  return backupsDir()
+    .list()
+    .filter((f): f is File => f instanceof File && f.name.endsWith('.json'))
+    .map((f) => {
+      const stamp = Number(f.name.match(/(\d{10,})/)?.[1] ?? 0);
+      return {
+        name: f.name,
+        uri: f.uri,
+        kind: f.name.startsWith(AUTO_PREFIX) ? ('auto' as const) : ('safety' as const),
+        createdAt: stamp || (f.modificationTime ?? 0),
+      };
+    })
+    .sort((a, b) => b.createdAt - a.createdAt);
+}
+
+/** Roda na abertura do app: uma cópia por semana, guarda só as 4 mais recentes */
+export async function runAutoBackupIfDue(db: SQLiteDatabase): Promise<void> {
+  const { settings } = useSettingsStore.getState();
+  if (!settings.autoBackup) return;
+  const now = Date.now();
+  if (settings.lastAutoBackupAt !== null && now - settings.lastAutoBackupAt < AUTO_EVERY_MS) return;
+
+  await writeBackupFile(db, backupsDir(), `${AUTO_PREFIX}${now}.json`);
+  for (const old of listStoredBackups().filter((b) => b.kind === 'auto').slice(AUTO_KEEP)) {
+    new File(old.uri).delete();
+  }
+  await saveSettings(db, { lastAutoBackupAt: now });
+  useSettingsStore.setState((s) => ({ settings: { ...s.settings, lastAutoBackupAt: now } }));
+}
+
+export async function readStoredBackup(uri: string): Promise<PickedBackup> {
+  const parsed = parseBackup(await new File(uri).text());
+  if (!parsed.ok) throw new Error(parsed.error);
+  return { file: parsed.file, preview: parsed.preview };
+}

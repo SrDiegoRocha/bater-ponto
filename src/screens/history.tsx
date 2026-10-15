@@ -6,8 +6,12 @@ import { useSQLiteContext } from 'expo-sqlite';
 import Animated, { FadeInDown, FadeOut, FadeOutDown, LinearTransition } from 'react-native-reanimated';
 
 import { CalendarGrid } from '@/components/calendar/calendar-grid';
+import { PeriodSwipe } from '@/components/period/period-swipe';
+import { filterWorkdays, type HistoryFilter } from '@/domain/history-filter';
+import { useSettings } from '@/stores/settings-store';
+import type { Choice } from '@/components/ui';
 import { PeriodSwitcher } from '@/components/period/period-switcher';
-import { Button, Card, EmptyState, Icon, Screen, SectionHeader, Text } from '@/components/ui';
+import { Button, Card, ChoiceChips, EmptyState, Icon, Screen, SectionHeader, Text } from '@/components/ui';
 import { PressableScale } from '@/components/ui/pressable-scale';
 import { WorkdayRow } from '@/components/workday/workday-row';
 import { usePeriodStats, useSelectedPeriod } from '@/hooks/use-period-stats';
@@ -20,10 +24,21 @@ import { minTouch, radius, spacing, useTheme, type ColorTokens } from '@/theme';
 
 // Histórico (§5.3): calendário do período + lista de jornadas. Toque longo no calendário = seleção múltipla.
 
+const FILTERS: Choice<HistoryFilter>[] = [
+  { value: 'all', label: 'Todas' },
+  { value: 'overtime', label: 'Com extra', icon: 'trending_up', color: 'work' },
+  { value: 'incomplete', label: 'Incompletas', icon: 'error', color: 'danger' },
+  { value: 'holiday', label: 'Feriados', icon: 'celebration', color: 'holiday' },
+  { value: 'night', label: 'Noturnas', icon: 'dark_mode', color: 'night' },
+];
+
 export function History() {
   const db = useSQLiteContext();
   const period = useSelectedPeriod();
-  const { stats, workdays, now } = usePeriodStats(period);
+  const { stats, workdays, dayOffs, holidays, now } = usePeriodStats(period);
+  const { dailyGoal } = useSettings();
+  const [filter, setFilter] = useState<HistoryFilter>('all');
+  const shown = stats ? filterWorkdays(workdays, filter, { summaries: stats.summaries, holidays, dayOffs, goal: dailyGoal }) : workdays;
   const [selected, setSelected] = useState<Set<DateKey>>(new Set());
   const today = toDateKey(now);
   const selecting = selected.size > 0;
@@ -48,6 +63,11 @@ export function History() {
     }
   };
 
+  const fillSelected = () => {
+    router.push({ pathname: '/aplicar', params: { dates: [...selected].sort().join(',') } });
+    setSelected(new Set());
+  };
+
   const markSelected = () => {
     router.push({ pathname: '/folga', params: { dates: [...selected].join(',') } });
     setSelected(new Set());
@@ -70,6 +90,7 @@ export function History() {
       >
         <PeriodSwitcher period={period} />
 
+        <PeriodSwipe>
         <Card>
           {stats ? (
             <CalendarGrid
@@ -85,15 +106,19 @@ export function History() {
           )}
           <Legend />
         </Card>
+        </PeriodSwipe>
         <Text variant="caption" color="textMuted" align="center">
           Toque num dia para ver ou marcar folga. Segure para selecionar vários.
         </Text>
 
-        <SectionHeader title={`Jornadas · ${workdays.length}`} />
-        {workdays.length === 0 ? (
+        <SectionHeader title={`Jornadas · ${shown.length}${filter !== 'all' ? ` de ${workdays.length}` : ''}`} />
+        <ChoiceChips options={FILTERS} value={filter} onChange={setFilter} />
+        {shown.length === 0 && filter !== 'all' ? (
+          <EmptyState illustration="done" title="Nenhuma jornada com esse filtro" />
+        ) : workdays.length === 0 ? (
           <EmptyState illustration="period" title="Nenhuma jornada neste período" description="Bata o ponto na tela Hoje ou registre uma jornada pelo +." />
         ) : (
-          workdays.map((w, i) => {
+          shown.map((w, i) => {
             const s = stats?.summaries.get(w.id);
             if (!s) return null;
             return (
@@ -120,7 +145,8 @@ export function History() {
               {selected.size} {selected.size === 1 ? 'dia' : 'dias'}
             </Text>
             <Button label="Cancelar" variant="ghost" size="sm" onPress={() => setSelected(new Set())} />
-            <Button label="Marcar folga" icon="beach_access" size="sm" onPress={markSelected} />
+            <Button label="Preencher" icon="edit_calendar" variant="secondary" size="sm" onPress={fillSelected} />
+            <Button label="Folga" icon="beach_access" size="sm" onPress={markSelected} />
           </Card>
         </Animated.View>
       ) : null}

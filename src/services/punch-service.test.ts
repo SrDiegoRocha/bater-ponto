@@ -9,6 +9,8 @@ import { createMemoryDb } from '@/test/memory-db';
 
 import {
   addPunchesToWorkday,
+  applyTemplateToDates,
+  shiftWorkday,
   copyWorkdayToDates,
   findLastCompleteWorkday,
   createManualWorkday,
@@ -209,5 +211,30 @@ describe('copiar jornada', () => {
     const end = await dayB();
     expect((await findLastCompleteWorkday(db, '2026-10-20'))!.id).toBe(end.workdayId);
     expect(await findLastCompleteWorkday(db, '2026-10-13')).toBeNull();
+  });
+});
+
+describe('escalas e ajuste em lote', () => {
+  it('aplica escala modelo em vários dias, pulando folga', async () => {
+    await setDayOffs(db, ['2026-10-04'], 'folga');
+    const template = { id: 't', name: 'B', shifts: [{ start: 4 * 60, end: 9 * 60 }, { start: 23 * 60, end: 2 * 60 }] };
+    const r = await applyTemplateToDates(db, template, ['2026-10-03', '2026-10-04']);
+    expect(r.created.map((c) => c.date)).toEqual(['2026-10-03']);
+    expect(r.skipped[0].reason).toMatch(/folga/);
+    const w = (await getWorkday(db, r.created[0].workdayId))!;
+    expect(w.punches.at(-1)!.at).toBe(t('2026-10-04T02:00:00'));
+    expect(summarizeWorkday(w.punches).workedMs).toBe(8 * HOUR);
+  });
+
+  it('move a jornada inteira e guarda os originais; respeita vizinhas e futuro', async () => {
+    const end = await dayB();
+    const undo = await shiftWorkday(db, end.workdayId, -10 * MINUTE);
+    const w = (await getWorkday(db, end.workdayId))!;
+    expect(w.punches[0].at).toBe(t('2026-10-13T03:50:00'));
+    expect(w.punches[0].originalAt).toBe(t('2026-10-13T04:00:00'));
+    expect(w.refDate).toBe('2026-10-13');
+    await undo();
+    expect((await getWorkday(db, end.workdayId))!.punches[0].at).toBe(t('2026-10-13T04:00:00'));
+    await expect(shiftWorkday(db, end.workdayId, 5 * HOUR)).rejects.toThrow(/futuro/);
   });
 });

@@ -31,6 +31,9 @@ export type Settings = {
   /** Trava por biometria — fica FORA do backup (L7) */
   biometricLock: boolean;
   lockAfterSec: number;
+  /** Backup automático semanal guardado no próprio app */
+  autoBackup: boolean;
+  lastAutoBackupAt: number | null;
 };
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -54,10 +57,12 @@ export const DEFAULT_SETTINGS: Settings = {
   lastBackupAt: null,
   biometricLock: false,
   lockAfterSec: 60,
+  autoBackup: true,
+  lastAutoBackupAt: null,
 };
 
 /** Chaves que pertencem ao aparelho, não aos dados (não entram no backup) */
-export const DEVICE_ONLY_SETTINGS: readonly (keyof Settings)[] = ['biometricLock', 'lockAfterSec'];
+export const DEVICE_ONLY_SETTINGS: readonly (keyof Settings)[] = ['biometricLock', 'lockAfterSec', 'autoBackup', 'lastAutoBackupAt'];
 
 export async function loadSettings(db: SQLiteDatabase): Promise<Settings> {
   const rows = await db.getAllAsync<{ key: string; value: string }>('SELECT key, value FROM setting');

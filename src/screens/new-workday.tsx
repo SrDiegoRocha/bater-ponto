@@ -13,6 +13,8 @@ import { resolveSequence, type MinuteOfDay } from '@/domain/time-of-day';
 import { summarizeWorkday } from '@/domain/workday';
 import { formatDuration, formatShortDate } from '@/lib/format';
 import { createManualWorkday } from '@/services/punch-service';
+import { useDbQuery } from '@/hooks/use-db-query';
+import { listTemplates } from '@/db/template-repo';
 import { showToast } from '@/stores/ui-store';
 import { minTouch, radius, spacing, useTheme } from '@/theme';
 
@@ -26,6 +28,7 @@ export function NewWorkday({ initialDate }: { initialDate?: string }) {
   const [date, setDate] = useState(() => initialDate ?? toDateKey(Date.now()));
   const [shifts, setShifts] = useState<Shift[]>([{ start: 8 * 60, end: 12 * 60 }]);
   const [pickingDate, setPickingDate] = useState(false);
+  const { data: templates } = useDbQuery((d) => listTemplates(d), []);
 
   const minutes = shifts.flatMap((s) => [s.start, s.end]);
   const instants = resolveSequence(fromDateKey(date).getTime(), minutes);
@@ -68,6 +71,19 @@ export function NewWorkday({ initialDate }: { initialDate?: string }) {
         </Text>
         <Icon name="expand_more" color="textMuted" />
       </PressableScale>
+
+      {templates && templates.length > 0 ? (
+        <View style={styles.templates}>
+          <Text variant="micro" color="textMuted">
+            Usar escala
+          </Text>
+          <View style={styles.templateRow}>
+            {templates.map((t) => (
+              <Button key={t.id} label={t.name} icon="view_timeline" variant="secondary" size="sm" onPress={() => setShifts(t.shifts)} />
+            ))}
+          </View>
+        </View>
+      ) : null}
 
       {shifts.map((shift, i) => (
         <Card key={i} style={styles.shift}>
@@ -124,5 +140,7 @@ const styles = StyleSheet.create({
     borderRadius: radius.lg,
   },
   shift: { gap: spacing.sm },
+  templates: { gap: spacing.sm },
+  templateRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
   shiftHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
 });

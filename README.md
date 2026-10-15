@@ -84,6 +84,7 @@ O que já existe hoje:
 - ✅ **Editor de horário**: −5/−1/+1/+5 min (segurar repete), relógio e calendário nativos, limites visíveis, prévia ao vivo dos totais, voltar ao original, excluir batida.
 - ✅ **Histórico**: calendário do período com cores por estado e feriados, seleção múltipla para folgas, lista de jornadas com mini-timeline, cadastro manual de jornada.
 - ✅ **Detalhe da jornada**: totais (trabalhado, intervalo, amplitude, noturno), timeline editável, adicionar turno ou batida, interjornada antes/depois, observação, excluir com desfazer.
+- ✅ **Facilidades**: previsão de saída no anel, "voltei há 5/15/30 min", escalas modelo, preencher vários dias de uma vez, mover a jornada inteira ±X min, filtros no histórico, compartilhar resumo em texto, trocar de período deslizando, atalhos no ícone do app e backup automático semanal.
 - ✅ **Copiar jornada** para um ou vários dias (mantém os horários, inclusive a madrugada), com atalho "copiar a última jornada" direto no calendário.
 - ✅ **Folgas** (folga, férias, atestado, feriado) em um ou vários dias, com proteção para dias que já têm jornada.
 - ✅ **Resumo**: cards com números animados e comparação com o período anterior, gráfico de horas por dia (com a meta) e por dia da semana, 11 indicadores de detalhe e botão de exportar PDF.
@@ -96,7 +97,7 @@ O que já existe hoje:
 - ✅ **Bloqueio por biometria**: digital/rosto ou PIN do Android, ao abrir e ao voltar do segundo plano (tempo configurável), conteúdo oculto nos apps recentes, confirmação extra para restaurar e apagar.
 - ✅ **Build com EAS**: perfis de desenvolvimento, preview (APK) e produção (AAB).
 - ✅ **Ajustes**: período, meta diária, valor da hora, aparência (sistema/claro/escuro), backup, restauração e apagar tudo.
-- ✅ **157 testes**: regras puras, cálculos CLT/impostos, PDF e casos de uso rodando contra SQLite real.
+- ✅ **168 testes**: regras puras, cálculos CLT/impostos, PDF e casos de uso rodando contra SQLite real.
 - ✅ Logo, ícone adaptativo/monocromático, splash claro/escuro, favicon e ícone da Play Store gerados por script.
 
 ---
@@ -265,6 +266,7 @@ Wordmark: `bater ponto.` em Inter Bold, minúsculas, com o **ponto final sempre 
 | Ativos da marca | `@resvg/resvg-js` (SVG → PNG) |
 | Seletores de data/hora | `@expo/ui` (DateTimePicker nativo do Android) |
 | Backup | `expo-file-system` + `expo-sharing` + `expo-document-picker` |
+| Atalhos no ícone | `expo-quick-actions` (só em build próprio) |
 
 | PDF | `expo-print` (HTML → PDF) |
 | Switch e Slider nativos | `@expo/ui` (Jetpack Compose) |
@@ -416,7 +418,7 @@ As pastas `android/` e `ios/` **não** são versionadas: são geradas pelo Expo 
 npm test
 ```
 
-16 suítes, 157 testes, cobrindo:
+19 suítes, 168 testes, cobrindo:
 
 - **Jornadas**: os exemplos A e B, jornada aberta até "agora", batidas fora de ordem, sequência inconsistente.
 - **Períodos**: 21→20, o dia 21 abrindo o próximo período, virada de ano, dia de início 31 em fevereiro (inclusive bissexto), sem buracos nem sobreposição.

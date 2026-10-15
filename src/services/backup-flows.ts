@@ -6,7 +6,7 @@ import { useSettingsStore } from '@/stores/settings-store';
 import { showToast } from '@/stores/ui-store';
 
 import { authenticate } from './auth-service';
-import { eraseAllData, pickBackup, restoreBackup, shareBackup } from './backup-service';
+import { eraseAllData, pickBackup, readStoredBackup, restoreBackup, shareBackup, type PickedBackup } from './backup-service';
 
 /** L8: ações sensíveis pedem autenticação de novo quando a trava está ligada */
 async function reauthenticate(message: string): Promise<boolean> {
@@ -32,10 +32,15 @@ export async function backupFlow(db: SQLiteDatabase): Promise<void> {
   }
 }
 
+/** Restaura um backup guardado no próprio app (automático ou de segurança) */
+export function restoreStoredFlow(db: SQLiteDatabase, uri: string): Promise<boolean> {
+  return restoreFlow(db, () => readStoredBackup(uri));
+}
+
 /** Retorna true se restaurou */
-export async function restoreFlow(db: SQLiteDatabase): Promise<boolean> {
+export async function restoreFlow(db: SQLiteDatabase, source: () => Promise<PickedBackup | null> = pickBackup): Promise<boolean> {
   try {
-    const picked = await pickBackup();
+    const picked = await source();
     if (!picked) return false;
     const { preview } = picked;
     const range = preview.firstDate && preview.lastDate

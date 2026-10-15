@@ -1,6 +1,6 @@
 import * as Haptics from 'expo-haptics';
 import { useEffect } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { StyleSheet } from 'react-native';
 import Animated, { FadeIn, FadeOut, interpolateColor, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 
 import { Icon, Text, type IconName } from '@/components/ui';
@@ -67,16 +67,6 @@ export function PunchButton({ state, onPress, onLongPress, disabled }: Props) {
   );
 }
 
-export function PunchHint() {
-  return (
-    <View style={styles.hint}>
-      <Text variant="caption" color="textMuted" align="center">
-        Segure o botão para bater com outro horário
-      </Text>
-    </View>
-  );
-}
-
 const styles = StyleSheet.create({
   button: {
     height: 64,
@@ -87,5 +77,4 @@ const styles = StyleSheet.create({
   },
   content: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   label: { fontSize: 18 },
-  hint: { marginTop: -spacing.sm },
 });

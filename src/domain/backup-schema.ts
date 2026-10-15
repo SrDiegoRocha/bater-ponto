@@ -1,7 +1,7 @@
 // Formato do arquivo de backup (PLANEJAMENTO.md §3.9). Versionado, validado antes de qualquer gravação.
 
 export const BACKUP_APP_ID = 'bater-ponto';
-export const BACKUP_SCHEMA_VERSION = 1;
+export const BACKUP_SCHEMA_VERSION = 2;
 
 export type BackupWorkday = { id: string; refDate: string; status: 'open' | 'closed' | 'incomplete'; note: string | null };
 export type BackupPunch = {
@@ -26,11 +26,15 @@ export type BackupHolidayOverride = {
   holidayKey: string | null;
 };
 
+export type BackupTemplate = { id: string; name: string; shifts: { start: number; end: number }[] };
+
 export type BackupData = {
   workdays: BackupWorkday[];
   punches: BackupPunch[];
   dayOffs: BackupDayOff[];
   holidayOverrides: BackupHolidayOverride[];
+  /** v2+ */
+  templates: BackupTemplate[];
   settings: Record<string, unknown>;
 };
 
@@ -112,8 +116,22 @@ function validOverride(o: unknown): o is BackupHolidayOverride {
   );
 }
 
-/** Migra arquivos de versões antigas para a atual (B6). Hoje só existe a v1. */
+function validTemplate(t: unknown): t is BackupTemplate {
+  return (
+    isObj(t) &&
+    isStr(t.id) &&
+    isStr(t.name) &&
+    Array.isArray(t.shifts) &&
+    t.shifts.every((s) => isObj(s) && isNum(s.start) && isNum(s.end))
+  );
+}
+
+/** Migra arquivos de versões antigas para a atual (B6) */
 function migrate(file: Record<string, unknown>): Record<string, unknown> {
+  // v1 → v2: ainda não havia escalas modelo
+  if (file.schemaVersion === 1 && isObj(file.data)) {
+    return { ...file, schemaVersion: 2, data: { ...file.data, templates: [] } };
+  }
   return file;
 }
 
@@ -136,13 +154,14 @@ export function parseBackup(text: string): ParseResult {
   const data = file.data;
   if (!isObj(data)) return { ok: false, error: 'Backup sem dados.' };
 
-  const { workdays, punches, dayOffs, holidayOverrides, settings } = data;
+  const { workdays, punches, dayOffs, holidayOverrides, templates, settings } = data;
   if (!Array.isArray(workdays) || !workdays.every(validWorkday)) return { ok: false, error: 'Jornadas inválidas no backup.' };
   if (!Array.isArray(punches) || !punches.every(validPunch)) return { ok: false, error: 'Batidas inválidas no backup.' };
   if (!Array.isArray(dayOffs) || !dayOffs.every(validDayOff)) return { ok: false, error: 'Folgas inválidas no backup.' };
   if (!Array.isArray(holidayOverrides) || !holidayOverrides.every(validOverride)) {
     return { ok: false, error: 'Feriados inválidos no backup.' };
   }
+  if (!Array.isArray(templates) || !templates.every(validTemplate)) return { ok: false, error: 'Escalas inválidas no backup.' };
   if (!isObj(settings)) return { ok: false, error: 'Configurações inválidas no backup.' };
 
   // Integridade: toda batida pertence a uma jornada do arquivo; ids únicos
@@ -159,7 +178,7 @@ export function parseBackup(text: string): ParseResult {
     schemaVersion: BACKUP_SCHEMA_VERSION,
     appVersion: isStr(file.appVersion) ? file.appVersion : '?',
     createdAt: isNum(file.createdAt) ? file.createdAt : 0,
-    data: { workdays, punches, dayOffs, holidayOverrides, settings },
+    data: { workdays, punches, dayOffs, holidayOverrides, templates, settings },
   };
   return {
     ok: true,

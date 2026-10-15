@@ -308,3 +308,12 @@ export async function normalizeWorkday(db: SQLiteDatabase, workdayId: string): P
     );
   });
 }
+
+/** Jornadas encerradas mais recentes (fontes para copiar) */
+export async function listRecentClosedWorkdays(db: SQLiteDatabase, limit: number): Promise<WorkdayWithPunches[]> {
+  const rows = await db.getAllAsync<WorkdayRow>(
+    "SELECT * FROM workday WHERE status = 'closed' ORDER BY ref_date DESC LIMIT ?",
+    limit,
+  );
+  return attachPunches(db, rows.map(toWorkday));
+}

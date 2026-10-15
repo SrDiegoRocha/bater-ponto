@@ -3,6 +3,7 @@ import { router } from 'expo-router';
 import { useSQLiteContext } from 'expo-sqlite';
 import { formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 import { BrandLockup } from '@/components/brand/brand-mark';
@@ -15,10 +16,11 @@ import { getPeriodContaining, periodLabel, periodRangeLabel } from '@/domain/per
 import { MINUTE, toDateKey } from '@/domain/time';
 import type { Settings, ThemePreference } from '@/db/settings-repo';
 import { TAX_YEAR } from '@/domain/tax-2026';
-import { formatDuration, formatMoney } from '@/lib/format';
+import { formatDuration, formatMoney, formatShortDate, formatTime } from '@/lib/format';
 import { toCents } from '@/domain/salary';
 import { authenticate, getLockAvailability } from '@/services/auth-service';
-import { backupFlow, eraseFlow, restoreFlow } from '@/services/backup-flows';
+import { backupFlow, eraseFlow, restoreFlow, restoreStoredFlow } from '@/services/backup-flows';
+import { listStoredBackups, type StoredBackup } from '@/services/backup-service';
 import { useLockStore } from '@/stores/lock-store';
 import { showToast } from '@/stores/ui-store';
 import { useSettings, useSettingsStore } from '@/stores/settings-store';
@@ -36,6 +38,8 @@ export function SettingsHome() {
         <ListRow title="Período" subtitle="Dia em que seu mês começa" icon="date_range" value={`dia ${s.periodStartDay}`} onPress={() => router.push('/ajustes/periodo')} />
         <Divider inset={36} />
         <ListRow title="Jornada" subtitle={s.dailyGoal.byWeekday ? 'Meta por dia da semana' : 'Meta diária'} icon="schedule" value={formatDuration(s.dailyGoal.defaultMinutes * MINUTE)} onPress={() => router.push('/ajustes/jornada')} />
+        <Divider inset={36} />
+        <ListRow title="Escalas" subtitle="Turnos que você repete" icon="view_timeline" onPress={() => router.push('/ajustes/escalas')} />
         <Divider inset={36} />
         <ListRow title="Salário" subtitle={s.salaryMode === 'clt' ? 'Valor da hora · modo CLT' : 'Valor da hora'} icon="payments" value={s.hourlyRate > 0 ? formatMoney(toCents(s.hourlyRate)) : '—'} onPress={() => router.push('/ajustes/salario')} />
         <Divider inset={36} />
@@ -329,7 +333,15 @@ export function AppearanceSettings() {
 
 export function DataSettings() {
   const db = useSQLiteContext();
-  const { lastBackupAt } = useSettings();
+  const { lastBackupAt, autoBackup } = useSettings();
+  const update = useSettingsStore((st) => st.update);
+  const [stored, setStored] = useState<StoredBackup[]>(() => {
+    try {
+      return listStoredBackups();
+    } catch {
+      return [];
+    }
+  });
   return (
     <Screen nativeHeader>
       <Card style={styles.gap}>
@@ -356,6 +368,33 @@ export function DataSettings() {
         </Text>
         <Button label="Restaurar backup" icon="restore" variant="secondary" block onPress={() => restoreFlow(db)} />
       </Card>
+
+      <SectionHeader title="Backups guardados no app" />
+      <Card style={styles.list}>
+        <SwitchRow
+          title="Backup automático semanal"
+          subtitle="Guarda as 4 cópias mais recentes neste aparelho"
+          value={autoBackup}
+          onValueChange={(v) => update(db, { autoBackup: v })}
+        />
+        {stored.map((b) => (
+          <View key={b.uri}>
+            <Divider />
+            <ListRow
+              title={b.kind === 'auto' ? 'Automático' : 'Antes de restaurar/apagar'}
+              subtitle={b.createdAt ? `${formatShortDate(b.createdAt)} às ${formatTime(b.createdAt)}` : b.name}
+              icon={b.kind === 'auto' ? 'schedule' : 'shield'}
+              onPress={async () => {
+                await restoreStoredFlow(db, b.uri);
+                setStored(listStoredBackups());
+              }}
+            />
+          </View>
+        ))}
+      </Card>
+      <Text variant="caption" color="textMuted">
+        Estas cópias ficam só neste aparelho. Para trocar de celular, use “Fazer backup agora” e guarde o arquivo fora dele.
+      </Text>
 
       <SectionHeader title="Zona de perigo" />
       <Button label="Apagar todos os dados" icon="delete_forever" variant="destructive" onPress={() => eraseFlow(db)} />

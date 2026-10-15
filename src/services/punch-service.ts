@@ -1,6 +1,7 @@
 import type { SQLiteDatabase } from 'expo-sqlite';
 
 import { copyShifts } from '@/domain/copy-workday';
+import { templateToShifts, type ShiftTemplate } from '@/domain/templates';
 import { deriveDayState, transition, type DayAction } from '@/domain/state-machine';
 import { MINUTE } from '@/domain/time';
 import type { DateKey, DayOffKind, Punch, PunchKind, PunchSource } from '@/domain/types';
@@ -291,20 +292,23 @@ export type CopyResult = {
   undo: Undo;
 };
 
-/** Copia os turnos de uma jornada completa para outras datas. Dias com folga ou conflito são pulados. */
-export async function copyWorkdayToDates(db: SQLiteDatabase, workdayId: string, dates: readonly DateKey[]): Promise<CopyResult> {
-  const source = await getWorkday(db, workdayId);
-  if (!source) throw new RuleError('Jornada não encontrada.');
-  const sample = copyShifts(source.punches, source.refDate, source.refDate);
-  if (!sample) throw new RuleError('Só dá para copiar uma jornada completa (todas as entradas com saída).');
-
+/**
+ * Cria jornadas em várias datas a partir de turnos calculados por data.
+ * Dias com folga, a data excluída e dias com conflito (sobreposição, futuro) são pulados e reportados.
+ */
+async function applyShiftsToDates(
+  db: SQLiteDatabase,
+  dates: readonly DateKey[],
+  shiftsFor: (date: DateKey) => { start: number; end: number }[],
+  excludeDate: DateKey | null,
+): Promise<CopyResult> {
   const sorted = [...new Set(dates)].sort();
   const dayOffs = sorted.length ? await listDayOffs(db, sorted[0], sorted.at(-1)!) : [];
   const created: CopyResult['created'] = [];
   const skipped: CopyResult['skipped'] = [];
 
   for (const date of sorted) {
-    if (date === source.refDate) {
+    if (date === excludeDate) {
       skipped.push({ date, reason: 'é o próprio dia da jornada' });
       continue;
     }
@@ -313,19 +317,58 @@ export async function copyWorkdayToDates(db: SQLiteDatabase, workdayId: string, 
       continue;
     }
     try {
-      const { workdayId: id } = await createManualWorkday(db, copyShifts(source.punches, source.refDate, date)!);
+      const { workdayId: id } = await createManualWorkday(db, shiftsFor(date));
       created.push({ date, workdayId: id });
     } catch (e) {
       if (!(e instanceof RuleError)) throw e;
-      skipped.push({ date, reason: e.message.replace(/\.$/, '').toLowerCase() });
+      skipped.push({ date, reason: e.message.replace(/.$/, '').toLowerCase() });
     }
   }
 
-  return {
-    created,
-    skipped,
-    undo: undoTo(db, new Map(created.map((c) => [c.workdayId, null]))),
-  };
+  return { created, skipped, undo: undoTo(db, new Map(created.map((c) => [c.workdayId, null]))) };
+}
+
+/** Copia os turnos de uma jornada completa para outras datas (mesmos horários de relógio) */
+export async function copyWorkdayToDates(db: SQLiteDatabase, workdayId: string, dates: readonly DateKey[]): Promise<CopyResult> {
+  const source = await getWorkday(db, workdayId);
+  if (!source) throw new RuleError('Jornada não encontrada.');
+  if (!copyShifts(source.punches, source.refDate, source.refDate)) {
+    throw new RuleError('Só dá para copiar uma jornada completa (todas as entradas com saída).');
+  }
+  return applyShiftsToDates(db, dates, (date) => copyShifts(source.punches, source.refDate, date)!, source.refDate);
+}
+
+/** Aplica uma escala modelo em várias datas */
+export async function applyTemplateToDates(db: SQLiteDatabase, template: ShiftTemplate, dates: readonly DateKey[]): Promise<CopyResult> {
+  if (template.shifts.length === 0) throw new RuleError('A escala não tem turnos.');
+  return applyShiftsToDates(db, dates, (date) => templateToShifts(template, date), null);
+}
+
+/** Move todas as batidas da jornada em ±delta (ex.: esqueceu de bater e tudo ficou 10 min atrasado) */
+export async function shiftWorkday(db: SQLiteDatabase, workdayId: string, deltaMs: number): Promise<Undo> {
+  const workday = await getWorkday(db, workdayId);
+  if (!workday || workday.punches.length === 0) throw new RuleError('Jornada não encontrada.');
+  if (deltaMs === 0) return async () => {};
+  const first = workday.punches[0].at + deltaMs;
+  const last = workday.punches.at(-1)!.at + deltaMs;
+  if (last > Date.now() + FUTURE_TOLERANCE_MS) throw new RuleError('Assim a jornada terminaria no futuro.');
+  const { previousWorkdayEnd, nextWorkdayStart } = await getNeighborBounds(db, workday.punches[0].at, workdayId);
+  if (previousWorkdayEnd != null && first <= previousWorkdayEnd) throw new RuleError('Assim a jornada invadiria a anterior.');
+  if (nextWorkdayStart != null && last >= nextWorkdayStart) throw new RuleError('Assim a jornada invadiria a próxima.');
+
+  const snapshot = await snapshotWorkday(db, workdayId);
+  const now = Date.now();
+  await db.withTransactionAsync(async () => {
+    await db.runAsync(
+      'UPDATE punch SET original_at = COALESCE(original_at, at), at = at + ?, updated_at = ? WHERE workday_id = ?',
+      deltaMs,
+      now,
+      workdayId,
+    );
+  });
+  await normalizeWorkday(db, workdayId);
+  bumpData();
+  return undoTo(db, new Map([[workdayId, snapshot]]));
 }
 
 /** Última jornada completa antes de uma data (atalho "copiar a jornada de ontem") */

@@ -58,6 +58,18 @@ const steps: ((db: SQLiteDatabase) => Promise<void>)[] = [
       );
     `);
   },
+
+  // v1 → v2: escalas modelo
+  async (db) => {
+    await db.execAsync(`
+      CREATE TABLE shift_template (
+        id          TEXT PRIMARY KEY NOT NULL,
+        name        TEXT NOT NULL,
+        shifts      TEXT NOT NULL,
+        created_at  INTEGER NOT NULL
+      );
+    `);
+  },
 ];
 
 export const DATABASE_NAME = 'bater-ponto.db';

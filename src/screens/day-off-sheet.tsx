@@ -125,6 +125,14 @@ export function DayOffSheet({ dates }: { dates: DateKey[] }) {
       ) : null}
       {single && data.workdays.length === 0 && existing.length === 0 ? (
         <Button
+          label="Aplicar escala ou outra jornada"
+          variant="ghost"
+          icon="edit_calendar"
+          onPress={() => router.replace({ pathname: '/aplicar', params: { dates: single } })}
+        />
+      ) : null}
+      {single && data.workdays.length === 0 && existing.length === 0 ? (
+        <Button
           label="Registrar jornada nesse dia"
           variant="ghost"
           icon="add"
