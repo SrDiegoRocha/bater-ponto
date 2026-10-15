@@ -16,6 +16,7 @@ import { getPeriodContaining, periodLabel, periodRangeLabel } from '@/domain/per
 import { MINUTE, toDateKey } from '@/domain/time';
 import type { Settings, ThemePreference } from '@/db/settings-repo';
 import { TAX_YEAR } from '@/domain/tax-2026';
+import { CLT_RULES, describeRules, type WorkRules } from '@/domain/work-rules';
 import { formatDuration, formatMoney, formatShortDate, formatTime } from '@/lib/format';
 import { toCents } from '@/domain/salary';
 import { authenticate, getLockAvailability } from '@/services/auth-service';
@@ -37,7 +38,7 @@ export function SettingsHome() {
       <Card style={styles.list}>
         <ListRow title="Período" subtitle="Dia em que seu mês começa" icon="date_range" value={`dia ${s.periodStartDay}`} onPress={() => router.push('/ajustes/periodo')} />
         <Divider inset={36} />
-        <ListRow title="Jornada" subtitle={s.dailyGoal.byWeekday ? 'Meta por dia da semana' : 'Meta diária'} icon="schedule" value={formatDuration(s.dailyGoal.defaultMinutes * MINUTE)} onPress={() => router.push('/ajustes/jornada')} />
+        <ListRow title="Regras da jornada" subtitle={describeRules(s.workRules) + (s.workRules.compensation ? ' · compensação' : '')} icon="schedule" onPress={() => router.push('/ajustes/jornada')} />
         <Divider inset={36} />
         <ListRow title="Escalas" subtitle="Turnos que você repete" icon="view_timeline" onPress={() => router.push('/ajustes/escalas')} />
         <Divider inset={36} />
@@ -92,75 +93,74 @@ export function PeriodSettings() {
   );
 }
 
-const WEEKDAY_NAMES = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'];
-const WEEK_ORDER = [1, 2, 3, 4, 5, 6, 0];
-
 export function WorkdaySettings() {
   const db = useSQLiteContext();
-  const { dailyGoal } = useSettings();
+  const { workRules: rules } = useSettings();
   const update = useSettingsStore((st) => st.update);
-  const perWeekday = !!dailyGoal.byWeekday;
   const hours = (m: number) => formatDuration(m * MINUTE);
-
-  function togglePerWeekday(on: boolean) {
-    if (!on) {
-      update(db, { dailyGoal: { defaultMinutes: dailyGoal.defaultMinutes } });
-      return;
-    }
-    // Começa com a meta padrão em todos os dias; o usuário ajusta só os diferentes
-    const byWeekday = Object.fromEntries(WEEK_ORDER.map((d) => [d, dailyGoal.defaultMinutes]));
-    update(db, { dailyGoal: { ...dailyGoal, byWeekday } });
-  }
-
-  const setDay = (day: number, minutes: number) =>
-    update(db, { dailyGoal: { ...dailyGoal, byWeekday: { ...dailyGoal.byWeekday, [day]: minutes } } });
+  const set = (patch: Partial<WorkRules>) => update(db, { workRules: { ...rules, ...patch } });
+  const isClt =
+    rules.dailyLimitMinutes === CLT_RULES.dailyLimitMinutes &&
+    rules.weeklyLimitMinutes === CLT_RULES.weeklyLimitMinutes &&
+    rules.compensation === CLT_RULES.compensation &&
+    rules.tolerance === CLT_RULES.tolerance;
 
   return (
     <Screen nativeHeader>
+      <Text variant="body" color="textMuted">
+        Hora extra é o que passar do limite do dia ou do limite da semana. Pela CLT são 8h por dia e 44h por semana. Mude só se o
+        seu contrato disser outra coisa.
+      </Text>
+
       <Card style={styles.gap}>
         <Text variant="body" color="textMuted">
-          {perWeekday ? 'Meta padrão (dias sem ajuste)' : 'Meta diária'}
+          Limite por dia
         </Text>
         <Stepper
-          label="Meta diária"
-          value={dailyGoal.defaultMinutes}
-          min={0}
-          max={16 * 60}
-          step={15}
+          label="Limite por dia"
+          value={rules.dailyLimitMinutes}
+          min={60}
+          max={12 * 60}
+          step={10}
           format={hours}
-          onChange={(v) => update(db, { dailyGoal: { ...dailyGoal, defaultMinutes: v } })}
+          onChange={(v) => set({ dailyLimitMinutes: v })}
+        />
+        <Divider />
+        <Text variant="body" color="textMuted">
+          Limite por semana
+        </Text>
+        <Stepper
+          label="Limite por semana"
+          value={rules.weeklyLimitMinutes}
+          min={60}
+          max={60 * 60}
+          step={30}
+          format={hours}
+          onChange={(v) => set({ weeklyLimitMinutes: v })}
         />
       </Card>
 
       <Card style={styles.gap}>
         <SwitchRow
-          title="Meta diferente por dia da semana"
-          subtitle="Ex.: sábado 4h, domingo 0h"
-          value={perWeekday}
-          onValueChange={togglePerWeekday}
+          title="Tolerância de 10 min"
+          subtitle="Até 10 min a mais no dia não viram hora extra. Passou disso, conta tudo. É regra da CLT."
+          value={rules.tolerance}
+          onValueChange={(v) => set({ tolerance: v })}
         />
-        {perWeekday
-          ? WEEK_ORDER.map((day) => (
-              <View key={day} style={styles.weekday}>
-                <Text variant="body" style={styles.weekdayLabel}>
-                  {WEEKDAY_NAMES[day]}
-                </Text>
-                <Stepper
-                    label={`Meta de ${WEEKDAY_NAMES[day]}`}
-                    value={dailyGoal.byWeekday?.[day] ?? dailyGoal.defaultMinutes}
-                    min={0}
-                    max={16 * 60}
-                    step={15}
-                    format={hours}
-                    onChange={(v) => setDay(day, v)}
-                  />
-              </View>
-            ))
-          : null}
+        <Divider />
+        <SwitchRow
+          title="Acordo de compensação"
+          subtitle="Ex.: 8h48 de segunda a sexta para folgar no sábado. Só conta extra o que passar do limite da semana (ou de 10h no dia). Ligue só se tiver esse acordo por escrito."
+          value={rules.compensation}
+          onValueChange={(v) => set({ compensation: v })}
+        />
       </Card>
+
+      {!isClt ? <Button label="Voltar ao padrão da CLT" icon="restart_alt" variant="ghost" onPress={() => set(CLT_RULES)} /> : null}
+
       <Text variant="caption" color="textMuted">
-        Usada no anel da tela Hoje, no banco de horas e nas horas extras do modo CLT. Em folgas, férias, atestados e feriados a
-        meta é zero, então qualquer hora trabalhada nesses dias vira saldo positivo.
+        Em feriados, folgas e domingos (se marcado em Salário) todas as horas são extra 100%. A semana vai de segunda a domingo.
+        Não tem jornada fixa? Não precisa configurar nada: o app usa só esses limites.
       </Text>
     </Screen>
   );
@@ -255,7 +255,7 @@ export function SalarySettings() {
           <SectionHeader title="Horas extras" />
           <Card style={styles.gap}>
             <Text variant="body" color="textMuted">
-              Hora extra comum (acima da meta do dia)
+              Hora extra comum (acima do limite do dia ou da semana)
             </Text>
             <Stepper label="Hora extra comum" value={s.overtimePct} min={0} max={200} step={5} format={pct} onChange={(v) => set({ overtimePct: v })} />
             <Text variant="body" color="textMuted">
@@ -406,6 +406,4 @@ const styles = StyleSheet.create({
   list: { paddingVertical: spacing.xs },
   gap: { gap: spacing.md },
   about: { alignItems: 'center', gap: spacing.sm, paddingTop: spacing.xl },
-  weekday: { gap: spacing.xs },
-  weekdayLabel: { paddingTop: spacing.sm },
 });

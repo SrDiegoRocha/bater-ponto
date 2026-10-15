@@ -1,8 +1,8 @@
-import { goalForDate, type DailyGoalConfig } from './balance';
 import type { Holiday } from './holidays';
 import { nightMs, REDUCED_NIGHT_HOUR_FACTOR } from './night-hours';
 import { periodDates, type Period } from './period';
 import { fromDateKey, HOUR } from './time';
+import { buildDayHours, classifyHours, sumOvertime, type DayHours, type WorkRules } from './work-rules';
 import { inss, irrf } from './tax-2026';
 import type { DateKey, DayOff } from './types';
 import { summarizeWorkday } from './workday';
@@ -10,7 +10,7 @@ import type { WorkdayInput } from './stats';
 
 // Modo CLT da calculadora (PLANEJAMENTO.md §3.6). Trabalhador horista: cada hora é paga pelo valor/hora.
 //
-// - Dia comum: até a meta diária = hora normal; o que passar = hora extra (padrão +50%).
+// - Dia comum: hora extra (padrão +50%) pelas regras da jornada (limite diário e semanal, work-rules.ts).
 // - Feriado, folga marcada e (opcional) domingo: todas as horas = hora extra (padrão +100%).
 //   A classificação usa a data de referência da jornada (dia em que começou).
 // - Adicional noturno (22h–5h, padrão +20%), com hora noturna reduzida opcional (52min30s = 1h).
@@ -19,7 +19,7 @@ import type { WorkdayInput } from './stats';
 
 export type CltConfig = {
   hourlyRate: number;
-  goal: DailyGoalConfig;
+  rules: WorkRules;
   overtimePct: number;
   holidayOvertimePct: number;
   nightPct: number;
@@ -60,41 +60,35 @@ type Input = {
   now: number;
   /** Horas extras a mais (simulador "E se?"), pagas como extra comum */
   extraSimulatedMs?: number;
+  /** Dias da mesma semana antes do início do período: só fecham a conta do limite semanal */
+  leadDays?: readonly DayHours[];
 };
 
 const cents = (reais: number) => Math.round(reais * 100);
 
-export function computeCltPay({ period, workdays, dayOffs, holidays, config, now, extraSimulatedMs = 0 }: Input): CltBreakdown {
+export function computeCltPay({
+  period,
+  workdays,
+  dayOffs,
+  holidays,
+  config,
+  now,
+  extraSimulatedMs = 0,
+  leadDays = [],
+}: Input): CltBreakdown {
   const rate = config.hourlyRate;
-  const dayOffDates = new Set(dayOffs.map((d) => d.date));
-  const workedByDate = new Map<DateKey, { worked: number; night: number }>();
 
+  const days = buildDayHours({ workdays, dayOffs, holidays, sundayDouble: config.sundayDouble, now });
+  const classified = classifyHours([...leadDays, ...days], config.rules);
+  const { normalMs, extraMs: workedExtraMs, extraDoubleMs } = sumOvertime(classified, period.start, period.end);
+  const extraMs = workedExtraMs + extraSimulatedMs;
+
+  let night = 0;
   for (const w of workdays) {
     if (w.status === 'incomplete') continue;
     const s = summarizeWorkday(w.punches, now);
     if (!s.isConsistent) continue;
-    const entry = workedByDate.get(w.refDate) ?? { worked: 0, night: 0 };
-    entry.worked += s.workedMs;
-    entry.night += s.segments.reduce((sum, seg) => sum + nightMs(seg), 0);
-    workedByDate.set(w.refDate, entry);
-  }
-
-  let normalMs = 0;
-  let extraMs = extraSimulatedMs;
-  let extraDoubleMs = 0;
-  let night = 0;
-
-  for (const [date, { worked, night: n }] of workedByDate) {
-    night += n;
-    const isSunday = fromDateKey(date).getDay() === 0;
-    const doubleDay = holidays.has(date) || dayOffDates.has(date) || (config.sundayDouble && isSunday);
-    if (doubleDay) {
-      extraDoubleMs += worked;
-      continue;
-    }
-    const goal = goalForDate(date, config.goal);
-    normalMs += Math.min(worked, goal);
-    extraMs += Math.max(0, worked - goal);
+    night += s.segments.reduce((sum, seg) => sum + nightMs(seg), 0);
   }
 
   const nightBonusMs = config.nightReduced ? night * (REDUCED_NIGHT_HOUR_FACTOR - 1) : 0;

@@ -6,6 +6,7 @@ import { Alert, StyleSheet, TextInput } from 'react-native';
 
 import { PeriodSwitcher } from '@/components/period/period-switcher';
 import { Button, SwitchRow, Text } from '@/components/ui';
+import { cltConfigFromSettings } from '@/hooks/use-clt-breakdown';
 import { usePeriodStats, useSelectedPeriod } from '@/hooks/use-period-stats';
 import { computeCltPay } from '@/domain/clt';
 import { simpleGrossCents } from '@/domain/salary';
@@ -23,7 +24,7 @@ export function ExportSheet() {
   const settings = useSettings();
   const update = useSettingsStore((s) => s.update);
   const period = useSelectedPeriod();
-  const { stats, workdays, dayOffs, holidays, now } = usePeriodStats(period);
+  const { stats, workdays, dayOffs, holidays, leadDays, now } = usePeriodStats(period);
   const [name, setName] = useState(settings.userName);
   const [withSalary, setWithSalary] = useState(settings.hourlyRate > 0);
   const [busy, setBusy] = useState(false);
@@ -48,18 +49,9 @@ export function ExportSheet() {
                   workdays,
                   dayOffs,
                   holidays,
+                  leadDays,
                   now,
-                  config: {
-                    hourlyRate: rate,
-                    goal: settings.dailyGoal,
-                    overtimePct: settings.overtimePct,
-                    holidayOvertimePct: settings.holidayOvertimePct,
-                    nightPct: settings.nightPct,
-                    nightReduced: settings.nightReduced,
-                    dsrOnExtras: settings.dsrOnExtras,
-                    sundayDouble: settings.sundayDouble,
-                    dependents: settings.dependents,
-                  },
+                  config: cltConfigFromSettings(settings, rate),
                 }),
               }
             : { mode: 'simple' as const, hourlyRate: rate, grossCents: simpleGrossCents(stats.workedMs, rate) };
@@ -70,7 +62,7 @@ export function ExportSheet() {
         workdays,
         dayOffs,
         holidays,
-        goal: settings.dailyGoal,
+        rules: settings.workRules,
         userName: name.trim(),
         generatedAt: Date.now(),
         salary,

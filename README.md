@@ -52,7 +52,7 @@ O usuário marca explicitamente o **início do dia** e o **fim do dia**, então 
 **Pilares**
 
 1. **Anotar o ponto em segundos.** A tela Hoje gira em torno de "Anotar entrada/saída": digita-se o horário mostrado no app da empresa (4 dígitos) ou o dia inteiro de uma vez.
-2. **Entender o período num relance.** Horas trabalhadas, intervalos, folgas, feriados, banco de horas e salário estimado do período configurado (ex.: dia 21 a dia 20).
+2. **Entender o período num relance.** Horas trabalhadas, intervalos, folgas, feriados, horas extras e salário estimado do período configurado (ex.: dia 21 a dia 20).
 3. **Confiável.** Toda batida pode ser corrigida em poucos toques. Regras impedem dados impossíveis (sobreposição, horário no futuro, etc.).
 4. **Premium e rápido.** Design system único, animações com propósito, feedback háptico e metas de performance explícitas.
 
@@ -64,7 +64,7 @@ O usuário marca explicitamente o **início do dia** e o **fim do dia**, então 
 | Dados | **100% no aparelho** (SQLite), com backup/restauração por arquivo |
 | Tema | Claro e escuro, **seguindo o sistema** por padrão |
 | Período | Dia de início configurável. Padrão: **21 → 20 do mês seguinte**, nomeado pelos meses que cobre ("Set–Out 2026 · 21/09 a 20/10") |
-| Meta diária | **8h** por padrão, configurável (e por dia da semana) |
+| Regras da jornada | **8h por dia e 44h por semana** (CLT), com tolerância de 10 min; configuráveis, com acordo de compensação opcional |
 | Intervalos | **Nunca** são remunerados; servem só como informação |
 | Salário | Modo simples (horas × valor/hora) e modo CLT opcional (extras, adicional noturno, INSS/IRRF) |
 
@@ -81,26 +81,26 @@ O usuário marca explicitamente o **início do dia** e o **fim do dia**, então 
 
 O que já existe hoje:
 
-- ✅ **Onboarding** em 4 passos: período, meta diária, valor da hora e opção de restaurar um backup.
-- ✅ **Hoje**: "Anotar entrada/saída" com o horário digitado (tipo da batida sugerido pelo estado do dia), "Anotar o dia inteiro", cronômetro, anel da meta, linha do tempo tocável, toast com **Desfazer**, avisos de jornada incompleta/aberta há muito tempo, folga e feriado do dia, descanso desde a última jornada.
+- ✅ **Onboarding** em 4 passos: período, limites da jornada, valor da hora e opção de restaurar um backup.
+- ✅ **Hoje**: "Anotar entrada/saída" com o horário digitado (tipo da batida sugerido pelo estado do dia), "Anotar o dia inteiro", cronômetro, anel até o limite do dia, linha do tempo tocável, toast com **Desfazer**, avisos de jornada incompleta/aberta há muito tempo, folga e feriado do dia, descanso desde a última jornada.
 - ✅ **Editor de horário**: −5/−1/+1/+5 min (segurar repete), relógio e calendário nativos, limites visíveis, prévia ao vivo dos totais, voltar ao original, excluir batida.
 - ✅ **Histórico**: calendário do período com cores por estado e feriados, seleção múltipla para folgas, lista de jornadas com mini-timeline, cadastro manual de jornada.
 - ✅ **Detalhe da jornada**: totais (trabalhado, intervalo, amplitude, noturno), timeline editável, adicionar turno ou batida, interjornada antes/depois, observação, excluir com desfazer.
 - ✅ **Facilidades**: previsão de saída no anel, escalas modelo, preencher vários dias de uma vez, mover a jornada inteira ±X min, filtros no histórico, compartilhar resumo em texto, trocar de período deslizando, atalhos no ícone do app e backup automático semanal.
 - ✅ **Copiar jornada** para um ou vários dias (mantém os horários, inclusive a madrugada), com atalho "copiar a última jornada" direto no calendário.
 - ✅ **Folgas** (folga, férias, atestado, feriado) em um ou vários dias, com proteção para dias que já têm jornada.
-- ✅ **Resumo**: cards com números animados e comparação com o período anterior, gráfico de horas por dia (com a meta) e por dia da semana, 11 indicadores de detalhe e botão de exportar PDF.
+- ✅ **Resumo**: cards com números animados e comparação com o período anterior, gráfico de horas por dia (com o limite diário) e por dia da semana, 11 indicadores de detalhe e botão de exportar PDF.
 - ✅ **Conferir holerite** (CLT): por período, digita-se o que o holerite pagou (horas extras 50%/100%, adicional noturno, DSR; horas em decimal ou relógio) e o app compara com o calculado pelas batidas, apontando o que faltou pagar. Fica salvo e entra no backup.
 - ✅ **Conferir espelho de ponto** (dia a dia): lista os dias do período com as batidas anotadas; cada dia é marcado como "bate" (um toque) ou "diferente", com as horas que o espelho mostra e uma observação. Mostra a diferença total e gera um texto com os dias divergentes para enviar ao RH. Entra no backup (formato v4).
 - ✅ **Salário**: modo simples ou **modo CLT** (extras 50%/100%, domingo, adicional noturno com hora reduzida, DSR, INSS e IRRF 2026 com a isenção até R$ 5.000), recibo detalhado e simulador "E se?" com sliders.
-- ✅ **Espelho de ponto em PDF**: tabela dia a dia (batidas, +1, horários editados, folgas, feriados, saldo), totais e salário opcional, compartilhado pelo Android.
+- ✅ **Espelho de ponto em PDF**: tabela dia a dia (batidas, +1, horários editados, folgas, feriados, horas extras), totais e salário opcional, compartilhado pelo Android.
 - ✅ **Feriados**: ativar/desativar por ano ou para sempre, pontos facultativos e feriados próprios (recorrentes ou não).
 - ✅ **Histórico**: deslizar para excluir (com desfazer) e entrada animada da lista.
 - ✅ **Ilustrações** dos estados vazios e **imagem de destaque** da Play Store.
-- ✅ **Meta por dia da semana** (ex.: sábado 4h, domingo 0h).
+- ✅ **Regras da jornada** no lugar da meta diária: hora extra é o que passa de 8h no dia ou 44h na semana (sem contar duas vezes), tolerância de 10 min (art. 58 §1º), acordo de compensação semanal (até 10h/dia) e contrato com limites menores. Atende quem tem escala variável sem pedir meta nenhuma.
 - ✅ **Bloqueio por biometria**: digital/rosto ou PIN do Android, ao abrir e ao voltar do segundo plano (tempo configurável), conteúdo oculto nos apps recentes, confirmação extra para restaurar e apagar.
 - ✅ **Build com EAS**: perfis de desenvolvimento, preview (APK) e produção (AAB).
-- ✅ **Ajustes**: período, meta diária, valor da hora, aparência (sistema/claro/escuro), backup, restauração e apagar tudo.
+- ✅ **Ajustes**: período, regras da jornada, valor da hora, aparência (sistema/claro/escuro), backup, restauração e apagar tudo.
 - ✅ **168 testes**: regras puras, cálculos CLT/impostos, PDF e casos de uso rodando contra SQLite real.
 - ✅ Logo, ícone adaptativo/monocromático, splash claro/escuro, favicon e ícone da Play Store gerados por script.
 
@@ -118,7 +118,7 @@ O que já existe hoje:
 | **Interjornada** | Descanso entre o fim de uma jornada e o início da próxima (CLT: mínimo 11h; o app avisa, não bloqueia). |
 | **Folga** | Dia inteiro sem trabalho: `folga`, `férias`, `atestado` ou `feriado`. |
 | **Período** | Intervalo de datas usado para os totais. Derivado do dia de início; **nunca armazenado**. |
-| **Meta diária / saldo** | Horas esperadas por dia (padrão 8h). Saldo = trabalhado − meta. Em folgas e feriados a meta é 0h. |
+| **Regras da jornada / horas extras** | Extra = o que passar do limite diário (8h) ou semanal (44h, semana de segunda a domingo), sem contar duas vezes. Tolerância: até 10 min no dia não conta. Com acordo de compensação, o dia pode ir a 10h e só a semana limita. Em feriado, folga e domingo (opcional) tudo é extra 100%. |
 
 ### Máquina de estados do dia
 
@@ -178,10 +178,10 @@ As regras completas (com códigos R1–R12, F1–F6, P1–P5, H1–H7, E1–E5, 
 
 | Tela | O que faz |
 |---|---|
-| **Hoje** | Botão principal de estado, cronômetro ao vivo, anel de progresso da meta, linha do tempo do dia, mini-resumo do período |
+| **Hoje** | Botão principal de estado, cronômetro ao vivo, anel de progresso até o limite do dia, linha do tempo do dia, mini-resumo do período |
 | **Histórico** | Calendário do período (com cores por estado), lista de jornadas com mini-timeline, seleção múltipla para marcar folgas |
 | **Detalhe da jornada** | Timeline editável, adicionar turno esquecido, interjornada antes/depois, observação |
-| **Resumo** | Horas trabalhadas, intervalos, dias trabalhados, folgas por tipo, feriados, banco de horas, médias, horas noturnas, comparação com o período anterior, gráficos |
+| **Resumo** | Horas trabalhadas, intervalos, dias trabalhados, folgas por tipo, feriados, horas extras, médias, horas noturnas, comparação com o período anterior, gráficos |
 | **Salário** | Valor/hora, recibo detalhado (simples ou CLT), simulador "E se?" |
 | **Ajustes** | Período, salário, jornada, feriados, segurança (biometria), aparência, dados (backup/restaurar/exportar PDF/apagar) |
 | **Exportar PDF** | Espelho de ponto do período, sempre em tema claro para impressão |
@@ -333,7 +333,7 @@ Wordmark: `bater ponto.` em Inter Bold, minúsculas, com o **ponto final sempre 
 │   │   ├── state-machine.ts   # FORA / TRABALHANDO / EM INTERVALO
 │   │   ├── validation.ts      # Regras R1–R5 e limites do editor (ED4)
 │   │   ├── holidays.ts        # Páscoa, feriados nacionais, overrides
-│   │   ├── balance.ts         # Meta diária e saldo
+│   │   ├── work-rules.ts      # Regras da jornada e classificação das horas extras
 │   │   ├── night-hours.ts     # Horas entre 22h e 5h
 │   │   ├── salary.ts          # Salário simples
 │   │   ├── stats.ts           # Indicadores do período e status de cada dia
@@ -431,10 +431,10 @@ npm test
 - **Máquina de estados**: todas as transições válidas e as inválidas.
 - **Validações**: alternância, ordem, futuro (com tolerância), jornada longa; limites do editor de horário e o caso 15:45 → 15:43.
 - **Feriados**: Páscoa de 2000, 2019 e 2024–2035; facultativos; desativação por ano; feriados próprios; período que atravessa o ano.
-- **Cálculos**: meta diária e por dia da semana, saldo, horas noturnas (inclusive em várias janelas), salário simples.
+- **Cálculos**: regras da jornada (limite diário/semanal, tolerância, compensação, semana parcial no início do período), horas noturnas (inclusive em várias janelas), salário simples.
 - **Formatação**: durações, relógio, dinheiro em R$, datas em pt-BR.
 - **Tema**: contraste WCAG AA de todos os tokens de texto nos dois temas.
-- **Indicadores do período**: totais, folgas por tipo, feriado trabalhado, banco de horas, horas noturnas, interjornada, médias de início/fim.
+- **Indicadores do período**: totais, folgas por tipo, feriado trabalhado, horas extras, horas noturnas, interjornada, médias de início/fim.
 - **INSS e IRRF 2026**: faixas progressivas, teto, isenção até R$ 5.000, redutor parcial, dependentes.
 - **Modo CLT**: normais × extras 50% × extras 100% (feriado e domingo), adicional noturno, hora reduzida, DSR e simulador.
 - **PDF**: batidas, +1, horários editados, folgas, feriados, escape de HTML e um dia por linha.

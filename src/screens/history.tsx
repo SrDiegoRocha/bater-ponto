@@ -8,7 +8,6 @@ import Animated, { FadeInDown, FadeOut, FadeOutDown, LinearTransition } from 're
 import { CalendarGrid } from '@/components/calendar/calendar-grid';
 import { PeriodSwipe } from '@/components/period/period-swipe';
 import { filterWorkdays, type HistoryFilter } from '@/domain/history-filter';
-import { useSettings } from '@/stores/settings-store';
 import type { Choice } from '@/components/ui';
 import { PeriodSwitcher } from '@/components/period/period-switcher';
 import { Button, Card, ChoiceChips, EmptyState, Icon, Screen, SectionHeader, Text } from '@/components/ui';
@@ -36,9 +35,8 @@ export function History() {
   const db = useSQLiteContext();
   const period = useSelectedPeriod();
   const { stats, workdays, dayOffs, holidays, now } = usePeriodStats(period);
-  const { dailyGoal } = useSettings();
   const [filter, setFilter] = useState<HistoryFilter>('all');
-  const shown = stats ? filterWorkdays(workdays, filter, { summaries: stats.summaries, holidays, dayOffs, goal: dailyGoal }) : workdays;
+  const shown = stats ? filterWorkdays(workdays, filter, { summaries: stats.summaries, holidays, dayOffs, overtime: stats.overtime }) : workdays;
   const [selected, setSelected] = useState<Set<DateKey>>(new Set());
   const today = toDateKey(now);
   const selecting = selected.size > 0;

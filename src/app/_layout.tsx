@@ -142,7 +142,7 @@ function AppNavigator() {
         <Stack.Screen name="feriado-novo" options={sheet} />
         <Stack.Screen name="ajustes/index" options={{ ...header, title: 'Ajustes' }} />
         <Stack.Screen name="ajustes/periodo" options={{ ...header, title: 'Período' }} />
-        <Stack.Screen name="ajustes/jornada" options={{ ...header, title: 'Jornada' }} />
+        <Stack.Screen name="ajustes/jornada" options={{ ...header, title: 'Regras da jornada' }} />
         <Stack.Screen name="ajustes/salario" options={{ ...header, title: 'Salário' }} />
         <Stack.Screen name="ajustes/escalas" options={{ ...header, title: 'Escalas' }} />
         <Stack.Screen name="ajustes/feriados" options={{ ...header, title: 'Feriados' }} />

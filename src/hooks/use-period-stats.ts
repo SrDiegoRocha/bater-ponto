@@ -3,7 +3,8 @@ import { useMemo } from 'react';
 import { holidaysInRange } from '@/domain/holidays';
 import { getPeriodContaining, shiftPeriod, type Period } from '@/domain/period';
 import { computePeriodStats } from '@/domain/stats';
-import { toDateKey } from '@/domain/time';
+import { addDaysToKey, toDateKey } from '@/domain/time';
+import { buildDayHours, weekStart } from '@/domain/work-rules';
 import { listDayOffs } from '@/db/day-off-repo';
 import { listHolidayOverrides } from '@/db/holiday-repo';
 import { listWorkdays } from '@/db/workday-repo';
@@ -29,13 +30,20 @@ export function useSelectedPeriod(): Period {
 
 /** Dados brutos + indicadores de um período. Recalcula a cada minuto (jornada aberta conta até agora). */
 export function usePeriodStats(period: Period) {
-  const { dailyGoal, optionalHolidays } = useSettings();
+  const { workRules, sundayDouble, optionalHolidays } = useSettings();
   const now = useNow();
+  // Dias da mesma semana antes do início do período: o limite semanal de horas precisa deles
+  const leadStart = weekStart(period.start);
+  const leadEnd = addDaysToKey(period.start, -1);
+  const hasLead = leadStart < period.start;
+
   const { data } = useDbQuery(
     async (db) => ({
       workdays: await listWorkdays(db, period.start, period.end),
       dayOffs: await listDayOffs(db, period.start, period.end),
       overrides: await listHolidayOverrides(db),
+      leadWorkdays: hasLead ? await listWorkdays(db, leadStart, leadEnd) : [],
+      leadDayOffs: hasLead ? await listDayOffs(db, leadStart, leadEnd) : [],
     }),
     [period.start, period.end],
   );
@@ -45,6 +53,12 @@ export function usePeriodStats(period: Period) {
     [period.start, period.end, data?.overrides, optionalHolidays],
   );
 
+  const leadDays = useMemo(() => {
+    if (!data || !hasLead) return [];
+    const leadHolidays = holidaysInRange(leadStart, leadEnd, data.overrides, { includeOptional: optionalHolidays });
+    return buildDayHours({ workdays: data.leadWorkdays, dayOffs: data.leadDayOffs, holidays: leadHolidays, sundayDouble, now });
+  }, [data, hasLead, leadStart, leadEnd, optionalHolidays, sundayDouble, now]);
+
   const stats = useMemo(() => {
     if (!data) return null;
     return computePeriodStats({
@@ -52,11 +66,13 @@ export function usePeriodStats(period: Period) {
       workdays: data.workdays,
       dayOffs: data.dayOffs,
       holidays,
-      goal: dailyGoal,
+      rules: workRules,
+      sundayDouble,
+      leadDays,
       today: toDateKey(now),
       now,
     });
-  }, [data, period, holidays, dailyGoal, now]);
+  }, [data, period, holidays, workRules, sundayDouble, leadDays, now]);
 
-  return { stats, workdays: data?.workdays ?? [], dayOffs: data?.dayOffs ?? [], holidays, now };
+  return { stats, workdays: data?.workdays ?? [], dayOffs: data?.dayOffs ?? [], holidays, leadDays, now };
 }

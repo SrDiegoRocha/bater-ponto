@@ -1,4 +1,4 @@
-import { DEFAULT_GOAL } from '@/domain/balance';
+import { CLT_RULES } from '@/domain/work-rules';
 import { holidaysInRange } from '@/domain/holidays';
 import { getPeriodContaining } from '@/domain/period';
 import { computePeriodStats } from '@/domain/stats';
@@ -35,7 +35,7 @@ it('monta o espelho com batidas, +1, editadas, folgas, feriados e escapa HTML', 
     },
   ];
   const dayOffs = [{ date: '2026-10-11', kind: 'folga' as const, note: null }];
-  const stats = computePeriodStats({ period, workdays, dayOffs, holidays, goal: DEFAULT_GOAL, today: '2026-10-14', now: t('2026-10-14T12:00:00') });
+  const stats = computePeriodStats({ period, workdays, dayOffs, holidays, rules: CLT_RULES, sundayDouble: true, today: '2026-10-14', now: t('2026-10-14T12:00:00') });
 
   const html = buildTimesheetHtml({
     period,
@@ -43,7 +43,7 @@ it('monta o espelho com batidas, +1, editadas, folgas, feriados e escapa HTML', 
     workdays,
     dayOffs,
     holidays,
-    goal: DEFAULT_GOAL,
+    rules: CLT_RULES,
     userName: 'Diego',
     generatedAt: t('2026-10-14T12:00:00'),
     salary: { mode: 'simple', hourlyRate: 20, grossCents: 6000 },

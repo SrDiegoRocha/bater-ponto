@@ -1,4 +1,3 @@
-import { goalForDate, type DailyGoalConfig } from '@/domain/balance';
 import type { CltBreakdown } from '@/domain/clt';
 import type { Holiday } from '@/domain/holidays';
 import { periodDates, periodLabel, type Period } from '@/domain/period';
@@ -6,6 +5,7 @@ import type { PeriodStats } from '@/domain/stats';
 import { toDateKey } from '@/domain/time';
 import type { DateKey, DayOff, Punch, Workday } from '@/domain/types';
 import { summarizeWorkday } from '@/domain/workday';
+import { describeRules, type WorkRules } from '@/domain/work-rules';
 
 import { formatDuration, formatMoney, formatShortDate, formatTime } from './format';
 
@@ -17,7 +17,7 @@ export type TimesheetInput = {
   workdays: readonly (Workday & { punches: Punch[] })[];
   dayOffs: readonly DayOff[];
   holidays: ReadonlyMap<DateKey, Holiday>;
-  goal: DailyGoalConfig;
+  rules: WorkRules;
   userName: string;
   generatedAt: number;
   salary: { mode: 'simple'; hourlyRate: number; grossCents: number } | { mode: 'clt'; hourlyRate: number; breakdown: CltBreakdown } | null;
@@ -31,7 +31,7 @@ const esc = (s: string) =>
 const SYMBOL = `<svg width="28" height="28" viewBox="0 0 24 24"><path d="M12 3 A9 9 0 1 1 4.2058 7.5" stroke="#0B7F50" stroke-width="2.5" stroke-linecap="round" fill="none"/><circle cx="4.2058" cy="7.5" r="2.25" fill="#0B7F50"/></svg>`;
 
 export function buildTimesheetHtml(input: TimesheetInput): string {
-  const { period, stats, workdays, dayOffs, holidays, goal, userName, generatedAt, salary } = input;
+  const { period, stats, workdays, dayOffs, holidays, rules, userName, generatedAt, salary } = input;
   const byDate = new Map<DateKey, (Workday & { punches: Punch[] })[]>();
   for (const w of workdays) byDate.set(w.refDate, [...(byDate.get(w.refDate) ?? []), w]);
   const dayOffByDate = new Map(dayOffs.map((d) => [d.date, d]));
@@ -50,7 +50,7 @@ export function buildTimesheetHtml(input: TimesheetInput): string {
     }
 
     return list
-      .map((w) => {
+      .map((w, i) => {
         const s = summarizeWorkday(w.punches, generatedAt);
         const punches = w.punches
           .map((p) => {
@@ -59,12 +59,14 @@ export function buildTimesheetHtml(input: TimesheetInput): string {
           })
           .join(' ');
         const incomplete = w.status === 'incomplete' || !s.isConsistent;
-        const goalMs = goalForDate(date, goal, { isNonWorkingDay: !!dayOff || !!holiday });
-        const balance = incomplete ? '—' : formatDuration(s.workedMs - goalMs, { signed: true });
+        // Extra é do dia inteiro: aparece na primeira jornada da data
+        const o = stats.overtime.get(date);
+        const dayExtra = o ? o.extraMs + o.extraDoubleMs : 0;
+        const extraCell = incomplete ? '—' : i === 0 && dayExtra > 0 ? formatDuration(dayExtra) : '';
         const extra = [holiday ? `Feriado · ${esc(holiday.name)}` : '', w.note ? esc(w.note) : '', incomplete ? 'Incompleta' : '', w.status === 'open' ? 'Em andamento' : '']
           .filter(Boolean)
           .join(' · ');
-        return `<tr>${dateCell}<td class="punches">${punches}</td><td class="num">${formatDuration(s.workedMs)}</td><td class="num">${formatDuration(s.breakMs)}</td><td class="num">${balance}</td><td class="note">${extra}</td></tr>`;
+        return `<tr>${dateCell}<td class="punches">${punches}</td><td class="num">${formatDuration(s.workedMs)}</td><td class="num">${formatDuration(s.breakMs)}</td><td class="num">${extraCell}</td><td class="note">${extra}</td></tr>`;
       })
       .join('');
   });
@@ -81,7 +83,9 @@ export function buildTimesheetHtml(input: TimesheetInput): string {
     ['Folgas', dayOffSummary || '0'],
     ['Feriados', `${stats.holidaysWorked} trabalhados · ${stats.holidaysOff} de folga`],
     ['Horas noturnas', formatDuration(stats.nightMs)],
-    ['Banco de horas', formatDuration(stats.balanceMs, { signed: true })],
+    ['Horas extras', formatDuration(stats.extraMs)],
+    ...(stats.extraDoubleMs > 0 ? [['Extras em feriado/folga', formatDuration(stats.extraDoubleMs)]] : []),
+    ['Regras da jornada', describeRules(rules)],
   ];
 
   let salaryBlock = '';
@@ -149,7 +153,7 @@ export function buildTimesheetHtml(input: TimesheetInput): string {
     <div class="muted">Gerado em ${generated}</div>
   </header>
   <table>
-    <thead><tr><th>Data</th><th>Dia</th><th>Batidas</th><th style="text-align:right">Trabalhado</th><th style="text-align:right">Intervalo</th><th style="text-align:right">Saldo</th><th>Obs.</th></tr></thead>
+    <thead><tr><th>Data</th><th>Dia</th><th>Batidas</th><th style="text-align:right">Trabalhado</th><th style="text-align:right">Intervalo</th><th style="text-align:right">Extra</th><th>Obs.</th></tr></thead>
     <tbody>${rows.join('')}</tbody>
   </table>
   <div class="sections">

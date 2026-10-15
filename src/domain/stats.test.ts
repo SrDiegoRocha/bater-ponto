@@ -1,7 +1,7 @@
-import { DEFAULT_GOAL } from './balance';
 import { holidaysInRange } from './holidays';
 import { getPeriodContaining } from './period';
 import { computePeriodStats, type WorkdayInput } from './stats';
+import { CLT_RULES } from './work-rules';
 import { HOUR } from './time';
 
 const t = (iso: string) => new Date(iso).getTime();
@@ -52,7 +52,8 @@ function run() {
       { date: '2026-10-05', kind: 'atestado', note: null },
     ],
     holidays: holidaysInRange(period.start, period.end, []),
-    goal: DEFAULT_GOAL,
+    rules: CLT_RULES,
+    sundayDouble: true,
     today: '2026-10-14',
     now: t('2026-10-14T12:00:00'),
   });
@@ -90,10 +91,11 @@ describe('computePeriodStats', () => {
     expect(s.shortest).toEqual({ date: '2026-10-12', ms: 10 * HOUR });
   });
 
-  it('banco de horas: feriado trabalhado vale tudo como crédito; dias vazios contam débito', () => {
-    // dias 21/09..13/10 = 23 dias passados. Úteis sem registro: 23 − 2 folgas − 1 feriado trabalhado − 1 dia 13 = 19
-    // Dia 10 (incompleto) também é débito. Saldo = 10h (feriado, meta 0) + (11h − 8h) − 19 × 8h
-    expect(s.balanceMs).toBe(10 * HOUR + 3 * HOUR - 19 * 8 * HOUR);
+  it('horas extras: feriado trabalhado é 100%; dia comum passa das 8h', () => {
+    // 12/10 (feriado) 10h a 100%; 13/10 11h → 3h extra
+    expect(s.extraDoubleMs).toBe(10 * HOUR);
+    expect(s.extraMs).toBe(3 * HOUR);
+    expect(s.overtime.get('2026-10-13')).toEqual({ normalMs: 8 * HOUR, extraMs: 3 * HOUR, extraDoubleMs: 0 });
   });
 
   it('dias sem registro não contam futuro nem hoje', () => {

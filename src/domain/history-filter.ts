@@ -1,8 +1,8 @@
-import { goalForDate, type DailyGoalConfig } from './balance';
 import type { Holiday } from './holidays';
 import { nightMs } from './night-hours';
 import type { WorkdayInput } from './stats';
 import type { DateKey, DayOff } from './types';
+import type { DayOvertime } from './work-rules';
 import type { WorkdaySummary } from './workday';
 
 // Filtros rápidos do Histórico.
@@ -16,11 +16,11 @@ export function filterWorkdays<T extends WorkdayInput>(
     summaries: ReadonlyMap<string, WorkdaySummary>;
     holidays: ReadonlyMap<DateKey, Holiday>;
     dayOffs: readonly DayOff[];
-    goal: DailyGoalConfig;
+    /** Classificação dos dias pelas regras da jornada (PeriodStats.overtime) */
+    overtime: ReadonlyMap<DateKey, DayOvertime>;
   },
 ): T[] {
   if (filter === 'all') return [...workdays];
-  const offDates = new Set(ctx.dayOffs.map((d) => d.date));
   return workdays.filter((w) => {
     const s = ctx.summaries.get(w.id);
     if (!s) return false;
@@ -33,8 +33,8 @@ export function filterWorkdays<T extends WorkdayInput>(
       case 'night':
         return s.segments.some((seg) => nightMs(seg) > 0);
       case 'overtime': {
-        const goal = goalForDate(w.refDate, ctx.goal, { isNonWorkingDay: offDates.has(w.refDate) || ctx.holidays.has(w.refDate) });
-        return !incomplete && s.workedMs > goal;
+        const o = ctx.overtime.get(w.refDate);
+        return !incomplete && !!o && o.extraMs + o.extraDoubleMs > 0;
       }
     }
   });

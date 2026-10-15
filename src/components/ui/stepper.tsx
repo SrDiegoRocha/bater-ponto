@@ -7,7 +7,7 @@ import { Icon } from './icon';
 import { PressableScale } from './pressable-scale';
 import { Text } from './text';
 
-/** Valor numérico com − / + (dia de início do período, meta diária…) */
+/** Valor numérico com − / + (dia de início do período, limites da jornada…) */
 export function Stepper({
   value,
   onChange,

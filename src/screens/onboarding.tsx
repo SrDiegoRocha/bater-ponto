@@ -26,7 +26,8 @@ export function Onboarding() {
   const update = useSettingsStore((s) => s.update);
   const [step, setStep] = useState(0);
   const [startDay, setStartDay] = useState(settings.periodStartDay);
-  const [goal, setGoal] = useState(settings.dailyGoal.defaultMinutes);
+  const [dailyLimit, setDailyLimit] = useState(settings.workRules.dailyLimitMinutes);
+  const [weeklyLimit, setWeeklyLimit] = useState(settings.workRules.weeklyLimitMinutes);
   const [rate, setRate] = useState(settings.hourlyRate);
 
   const now = useNow();
@@ -37,7 +38,7 @@ export function Onboarding() {
     await update(db, {
       onboardingDone: true,
       periodStartDay: startDay,
-      dailyGoal: { ...settings.dailyGoal, defaultMinutes: goal },
+      workRules: { ...settings.workRules, dailyLimitMinutes: dailyLimit, weeklyLimitMinutes: weeklyLimit },
       hourlyRate: rate,
     });
     router.replace('/');
@@ -88,11 +89,18 @@ export function Onboarding() {
         ) : step === 2 ? (
           <View style={styles.gap}>
             <Text variant="title1">Sua jornada</Text>
+            <Text variant="body" color="textMuted">
+              Hora extra é o que passar destes limites. Pela CLT são 8h por dia e 44h por semana. Escala variável? Deixe assim.
+            </Text>
             <Card style={styles.gap}>
               <Text variant="body" color="textMuted">
-                Meta de horas por dia
+                Limite por dia
               </Text>
-              <Stepper label="Meta diária" value={goal} min={0} max={16 * 60} step={15} format={(m) => formatDuration(m * MINUTE)} onChange={setGoal} />
+              <Stepper label="Limite por dia" value={dailyLimit} min={60} max={12 * 60} step={10} format={(m) => formatDuration(m * MINUTE)} onChange={setDailyLimit} />
+              <Text variant="body" color="textMuted">
+                Limite por semana
+              </Text>
+              <Stepper label="Limite por semana" value={weeklyLimit} min={60} max={60 * 60} step={30} format={(m) => formatDuration(m * MINUTE)} onChange={setWeeklyLimit} />
             </Card>
             <Card style={styles.gap}>
               <Text variant="body" color="textMuted">

@@ -1,6 +1,6 @@
 import type { DayState } from './state-machine';
 
-// Previsão de saída (tela Hoje): quanto falta para a meta e a que horas ela é atingida.
+// Previsão da tela Hoje: quanto falta para o limite do dia e a que horas ele é atingido.
 
 export type Forecast =
   | { kind: 'done'; overMs: number }

@@ -8,12 +8,12 @@ import { computeCltPay } from '@/domain/clt';
 import { buildSummaryText } from '@/lib/summary-text';
 import { Card, Divider, EmptyState, Icon, ListRow, Screen, SectionHeader, StatCard, StatGrid, Text, type StatDelta } from '@/components/ui';
 import { PressableScale } from '@/components/ui/pressable-scale';
+import { cltConfigFromSettings } from '@/hooks/use-clt-breakdown';
 import { usePeriodStats, useSelectedPeriod } from '@/hooks/use-period-stats';
-import { goalForDate } from '@/domain/balance';
 import { periodDates, shiftPeriod } from '@/domain/period';
 import { simpleGrossCents } from '@/domain/salary';
 import type { PeriodStats } from '@/domain/stats';
-import { fromDateKey, HOUR } from '@/domain/time';
+import { fromDateKey, HOUR, MINUTE } from '@/domain/time';
 import { formatDuration, formatMoney, formatShortDate } from '@/lib/format';
 import { useSettings } from '@/stores/settings-store';
 import { minTouch, spacing } from '@/theme';
@@ -45,9 +45,10 @@ export function Summary() {
   const settings = useSettings();
   const period = useSelectedPeriod();
   const previous = shiftPeriod(period, -1, settings.periodStartDay);
-  const { stats, workdays, dayOffs, holidays, now } = usePeriodStats(period);
+  const { stats, workdays, dayOffs, holidays, leadDays, now } = usePeriodStats(period);
   const { stats: prev } = usePeriodStats(previous);
-  const { hourlyRate, dailyGoal } = settings;
+  const { hourlyRate, workRules } = settings;
+  const dailyLimitMs = workRules.dailyLimitMinutes * MINUTE;
 
   const money = (ms: number) => simpleGrossCents(ms, hourlyRate);
 
@@ -60,8 +61,9 @@ export function Summary() {
         workdays,
         dayOffs,
         holidays,
+        leadDays,
         now,
-        config: { ...settings, goal: settings.dailyGoal },
+        config: cltConfigFromSettings(settings),
       });
       salary = { label: 'Salário líquido estimado', cents: b.net };
     } else if (hourlyRate > 0) {
@@ -135,12 +137,17 @@ export function Summary() {
               }
             />
             <StatCard
-              label="Banco de horas"
-              numeric={stats.balanceMs}
-              format={(n) => formatDuration(n, { signed: true })}
-              icon="account_balance"
-              color={stats.balanceMs < 0 ? 'danger' : 'work'}
-              hint="saldo até hoje vs. meta diária"
+              label="Horas extras"
+              numeric={stats.extraMs + stats.extraDoubleMs}
+              format={formatDuration}
+              icon="more_time"
+              color="break"
+              delta={prev ? delta(stats.extraMs + stats.extraDoubleMs, prev.extraMs + prev.extraDoubleMs, formatDuration) : undefined}
+              hint={
+                stats.extraDoubleMs > 0
+                  ? `${formatDuration(stats.extraDoubleMs)} em feriado/folga`
+                  : 'regras em Ajustes → Regras da jornada'
+              }
             />
             <StatCard
               label="Salário estimado"
@@ -164,7 +171,7 @@ export function Summary() {
             ) : (
               <BarChart
                 bars={dailyBars(stats, periodDates(period))}
-                reference={{ value: dailyGoal.defaultMinutes / 60, label: `meta ${formatDuration(goalForDate(period.start, dailyGoal))}` }}
+                reference={{ value: dailyLimitMs / HOUR, label: `limite ${formatDuration(dailyLimitMs)}` }}
                 formatValue={hoursLabel}
                 labelEvery={5}
                 accessibilityLabel={`Horas trabalhadas por dia no período. Total ${formatDuration(stats.workedMs)}.`}

@@ -11,7 +11,7 @@ import { usePeriodStats } from './use-period-stats';
 export function cltConfigFromSettings(settings: Settings, hourlyRate = settings.hourlyRate): CltConfig {
   return {
     hourlyRate,
-    goal: settings.dailyGoal,
+    rules: settings.workRules,
     overtimePct: settings.overtimePct,
     holidayOvertimePct: settings.holidayOvertimePct,
     nightPct: settings.nightPct,
@@ -25,9 +25,9 @@ export function cltConfigFromSettings(settings: Settings, hourlyRate = settings.
 /** O que o app calcula pela CLT no período, a partir das batidas anotadas */
 export function useCltBreakdown(period: Period): CltBreakdown | null {
   const settings = useSettings();
-  const { stats, workdays, dayOffs, holidays, now } = usePeriodStats(period);
+  const { stats, workdays, dayOffs, holidays, leadDays, now } = usePeriodStats(period);
   return useMemo(() => {
     if (!stats) return null;
-    return computeCltPay({ period, workdays, dayOffs, holidays, now, config: cltConfigFromSettings(settings) });
-  }, [stats, period, workdays, dayOffs, holidays, now, settings]);
+    return computeCltPay({ period, workdays, dayOffs, holidays, leadDays, now, config: cltConfigFromSettings(settings) });
+  }, [stats, period, workdays, dayOffs, holidays, leadDays, now, settings]);
 }

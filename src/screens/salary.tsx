@@ -31,7 +31,7 @@ export function Salary() {
   const settings = useSettings();
   const update = useSettingsStore((s) => s.update);
   const period = useSelectedPeriod();
-  const { stats, workdays, dayOffs, holidays, now } = usePeriodStats(period);
+  const { stats, workdays, dayOffs, holidays, leadDays, now } = usePeriodStats(period);
   const [simulate, setSimulate] = useState(false);
   const [extraHours, setExtraHours] = useState(0);
   const [rateFactor, setRateFactor] = useState(1);
@@ -48,11 +48,12 @@ export function Salary() {
       workdays,
       dayOffs,
       holidays,
+      leadDays,
       now,
       extraSimulatedMs,
       config: cltConfigFromSettings(settings, rate),
     });
-  }, [clt, stats, period, workdays, dayOffs, holidays, now, extraSimulatedMs, rate, settings]);
+  }, [clt, stats, period, workdays, dayOffs, holidays, leadDays, now, extraSimulatedMs, rate, settings]);
 
   const total = breakdown ? breakdown.net : simpleGrossCents(worked, rate);
 

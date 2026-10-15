@@ -1,10 +1,10 @@
-import { dayBalance, goalForDate, type DailyGoalConfig } from './balance';
 import type { Holiday } from './holidays';
 import { nightMs } from './night-hours';
 import { periodDates, type Period } from './period';
 import { fromDateKey, MINUTE } from './time';
 import { summarizeWorkday, type WorkdaySummary } from './workday';
 import { MIN_REST_MS } from './validation';
+import { buildDayHours, classifyHours, sumOvertime, type DayHours, type DayOvertime, type WorkRules } from './work-rules';
 import type { DateKey, DayOff, DayOffKind, Punch, Workday } from './types';
 
 // Indicadores do período (PLANEJAMENTO.md §4).
@@ -27,8 +27,12 @@ export type PeriodStats = {
   dayOffTotal: number;
   holidaysOff: number;
   holidaysWorked: number;
-  /** Banco de horas: soma dos saldos até hoje */
-  balanceMs: number;
+  /** Horas extras pelas regras da jornada (limite diário/semanal) */
+  extraMs: number;
+  /** Horas em feriado, folga ou domingo (extra 100%) */
+  extraDoubleMs: number;
+  /** Classificação de cada dia trabalhado do período */
+  overtime: Map<DateKey, DayOvertime>;
   avgWorkedPerDayMs: number;
   avgBreakPerDayMs: number;
   longest: { date: DateKey; ms: number } | null;
@@ -49,7 +53,11 @@ type Input = {
   workdays: readonly WorkdayInput[];
   dayOffs: readonly DayOff[];
   holidays: ReadonlyMap<DateKey, Holiday>;
-  goal: DailyGoalConfig;
+  rules: WorkRules;
+  /** Domingo trabalhado conta como extra 100% */
+  sundayDouble: boolean;
+  /** Dias da mesma semana antes do período (fecham o limite semanal) */
+  leadDays?: readonly DayHours[];
   today: DateKey;
   now: number;
 };
@@ -57,7 +65,7 @@ type Input = {
 const minutesFromRefDate = (refDate: DateKey, at: number) => (at - fromDateKey(refDate).getTime()) / MINUTE;
 const average = (values: number[]) => (values.length ? values.reduce((a, b) => a + b, 0) / values.length : null);
 
-export function computePeriodStats({ period, workdays, dayOffs, holidays, goal, today, now }: Input): PeriodStats {
+export function computePeriodStats({ period, workdays, dayOffs, holidays, rules, sundayDouble, leadDays = [], today, now }: Input): PeriodStats {
   const dayOffByDate = new Map(dayOffs.map((d) => [d.date, d]));
   const summaries = new Map<string, WorkdaySummary>();
   const byDate = new Map<DateKey, WorkdayInput[]>();
@@ -102,7 +110,6 @@ export function computePeriodStats({ period, workdays, dayOffs, holidays, goal, 
 
   const dayOffCounts: Record<DayOffKind, number> = { folga: 0, ferias: 0, atestado: 0, feriado: 0 };
   const days = new Map<DateKey, DayStatus>();
-  let balanceMs = 0;
   let holidaysOff = 0;
   let holidaysWorked = 0;
   let daysWithoutRecord = 0;
@@ -136,13 +143,11 @@ export function computePeriodStats({ period, workdays, dayOffs, holidays, goal, 
     }
 
     if (dayOff) dayOffCounts[dayOff.kind]++;
-
-    // Banco de horas: dias passados sempre; hoje só se já houver jornada (não penaliza o dia em curso)
-    if (date < today || (date === today && dayWorkdays.length > 0)) {
-      const goalMs = goalForDate(date, goal, { isNonWorkingDay: !!dayOff || !!holiday });
-      balanceMs += dayBalance(worked, goalMs);
-    }
   }
+
+  const classified = classifyHours([...leadDays, ...buildDayHours({ workdays, dayOffs, holidays, sundayDouble, now })], rules);
+  const overtime = new Map([...classified].filter(([date]) => date >= period.start && date <= period.end));
+  const extras = sumOvertime(overtime, period.start, period.end);
 
   const workedDays = [...workedByDate.entries()].filter(([, ms]) => ms > 0);
   const daysWorked = workedDays.length;
@@ -157,7 +162,9 @@ export function computePeriodStats({ period, workdays, dayOffs, holidays, goal, 
     dayOffTotal: Object.values(dayOffCounts).reduce((a, b) => a + b, 0),
     holidaysOff,
     holidaysWorked,
-    balanceMs,
+    extraMs: extras.extraMs,
+    extraDoubleMs: extras.extraDoubleMs,
+    overtime,
     avgWorkedPerDayMs: daysWorked ? workedMs / daysWorked : 0,
     avgBreakPerDayMs: daysWorked ? breakMs / daysWorked : 0,
     longest: sortedByMs.length ? { date: sortedByMs[0][0], ms: sortedByMs[0][1] } : null,

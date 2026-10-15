@@ -1,25 +1,8 @@
-import { dayBalance, DEFAULT_GOAL, goalForDate } from './balance';
 import { nightMs } from './night-hours';
 import { simpleGrossCents } from './salary';
 import { HOUR, MINUTE } from './time';
 
 const t = (iso: string) => new Date(iso).getTime();
-
-describe('meta diária e saldo', () => {
-  it('padrão de 8h', () => {
-    expect(goalForDate('2026-10-14', DEFAULT_GOAL)).toBe(8 * HOUR);
-  });
-  it('meta por dia da semana (sábado 4h)', () => {
-    expect(goalForDate('2026-10-17', { defaultMinutes: 480, byWeekday: { 6: 240 } })).toBe(4 * HOUR);
-  });
-  it('folga/feriado → meta 0', () => {
-    expect(goalForDate('2026-10-12', DEFAULT_GOAL, { isNonWorkingDay: true })).toBe(0);
-  });
-  it('saldo positivo e negativo', () => {
-    expect(dayBalance(10 * HOUR, 8 * HOUR)).toBe(2 * HOUR);
-    expect(dayBalance(7 * HOUR, 8 * HOUR)).toBe(-HOUR);
-  });
-});
 
 describe('horas noturnas (22h–5h)', () => {
   it('turno 23h → 02h é todo noturno', () => {
@@ -47,11 +30,4 @@ describe('salário simples', () => {
   it('sem valor/hora → 0', () => {
     expect(simpleGrossCents(10 * HOUR, 0)).toBe(0);
   });
-});
-
-it('meta por dia da semana continua funcionando depois de salva em JSON (chaves viram texto)', () => {
-  const stored = JSON.parse(JSON.stringify({ defaultMinutes: 480, byWeekday: { 6: 240, 0: 0 } }));
-  expect(goalForDate('2026-10-17', stored)).toBe(4 * HOUR); // sábado
-  expect(goalForDate('2026-10-18', stored)).toBe(0); // domingo
-  expect(goalForDate('2026-10-19', stored)).toBe(8 * HOUR); // segunda
 });

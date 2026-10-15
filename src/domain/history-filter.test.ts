@@ -1,8 +1,8 @@
-import { DEFAULT_GOAL } from './balance';
 import { filterWorkdays } from './history-filter';
 import { holidaysInRange } from './holidays';
 import type { WorkdayInput } from './stats';
 import { summarizeWorkday } from './workday';
+import { buildDayHours, classifyHours, CLT_RULES } from './work-rules';
 
 const t = (iso: string) => new Date(iso).getTime();
 const w = (id: string, refDate: string, a: string, b: string, status: WorkdayInput['status'] = 'closed'): WorkdayInput => ({
@@ -23,11 +23,12 @@ const list = [
   w('night', '2026-10-15', '2026-10-15T21:00:00', '2026-10-16T01:00:00'),
   w('broken', '2026-10-16', '2026-10-16T08:00:00', '2026-10-16T09:00:00', 'incomplete'),
 ];
+const holidays = holidaysInRange('2026-10-01', '2026-10-31', []);
 const ctx = {
   summaries: new Map(list.map((x) => [x.id, summarizeWorkday(x.punches)])),
-  holidays: holidaysInRange('2026-10-01', '2026-10-31', []),
+  holidays,
   dayOffs: [],
-  goal: DEFAULT_GOAL,
+  overtime: classifyHours(buildDayHours({ workdays: list, dayOffs: [], holidays, sundayDouble: true, now: t('2026-10-20T00:00:00') }), CLT_RULES),
 };
 const ids = (f: Parameters<typeof filterWorkdays>[1]) => filterWorkdays(list, f, ctx).map((x) => x.id);
 

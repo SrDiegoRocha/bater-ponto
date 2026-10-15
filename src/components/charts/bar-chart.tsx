@@ -9,13 +9,13 @@ import { spacing, timing, useTheme, type ColorTokens } from '@/theme';
 
 // Gráfico de barras de uma série (horas por dia, por dia da semana).
 // Regras do design de dados: barras finas com 2px de vão, topo arredondado (4px) ancorado na base,
-// grade recessiva, uma linha de referência (meta) e toque numa barra mostra o valor (tooltip).
+// grade recessiva, uma linha de referência (limite diário) e toque numa barra mostra o valor (tooltip).
 
 export type Bar = { key: string; label: string; value: number; color?: keyof ColorTokens; detail?: string };
 
 type Props = {
   bars: readonly Bar[];
-  /** Linha de referência (ex.: meta diária) */
+  /** Linha de referência (ex.: limite diário) */
   reference?: { value: number; label: string };
   formatValue: (v: number) => string;
   height?: number;

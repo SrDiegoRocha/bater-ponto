@@ -10,7 +10,6 @@ import { Timeline } from '@/components/workday/timeline';
 import { useDbQuery } from '@/hooks/use-db-query';
 import { useNow } from '@/hooks/use-now';
 import { useCurrentPeriod, usePeriodStats } from '@/hooks/use-period-stats';
-import { goalForDate } from '@/domain/balance';
 import { forecastGoal } from '@/domain/forecast';
 import { periodDates, periodLabel, periodRangeLabel } from '@/domain/period';
 import { simpleGrossCents } from '@/domain/salary';
@@ -75,15 +74,16 @@ export function Today() {
   const dayStatus = stats?.days.get(today);
   const todayDayOff = dayStatus?.type === 'dayOff' ? dayStatus.kind : null;
   const holiday = dayStatus && 'holiday' in dayStatus ? dayStatus.holiday : null;
-  const goal = goalForDate(today, settings.dailyGoal) || settings.dailyGoal.defaultMinutes * 60_000;
+  // O anel mostra o dia até o limite diário: o que passar dele tende a ser hora extra
+  const goal = settings.workRules.dailyLimitMinutes * MINUTE;
   const progress = goal > 0 ? (summary?.workedMs ?? 0) / goal : 0;
 
   const restMs = state === 'off' && lastEnd !== null ? now - lastEnd : null;
   const openForMs = open?.punches[0] ? now - open.punches[0].at : 0;
   const daysLeft = periodDates(period).filter((d) => d >= today).length;
 
-  // Previsão de saída: meta real do dia (0 em folga/feriado = sem previsão)
-  const realGoal = goalForDate(today, settings.dailyGoal, { isNonWorkingDay: !!todayDayOff || !!holiday });
+  // Previsão do limite do dia (folga/feriado: tudo já é extra, sem previsão)
+  const realGoal = todayDayOff || holiday ? 0 : goal;
   const forecast = forecastGoal(summary?.workedMs ?? 0, realGoal, state, now);
 
   // Nada anotado hoje: quem copia tudo no fim do dia prefere cadastrar a jornada inteira de uma vez
@@ -144,13 +144,13 @@ export function Today() {
             <LiveClock baseMs={closedMs} runningSince={runningSegment?.start ?? null} />
             <StatusPill status={state === 'working' ? 'work' : state === 'break' ? 'break' : 'off'} />
             <Text variant="caption" color="textMuted" tabular>
-              meta {formatDuration(goal)}
+              limite {formatDuration(goal)}
             </Text>
           </View>
         </ProgressRing>
       </View>
 
-      <ForecastLine forecast={forecast} />
+      <ForecastLine forecast={forecast} limitLabel={formatDuration(goal)} compensation={settings.workRules.compensation} />
 
       {todayDayOff && state === 'off' ? (
         <Card style={styles.dayOffCard}>
@@ -225,7 +225,7 @@ export function Today() {
               {formatDuration(stats.workedMs)} trabalhadas
             </Text>
             <Text variant="caption" color="textMuted" tabular>
-              {stats.daysWorked} dias · {stats.dayOffTotal} folgas · banco {formatDuration(stats.balanceMs, { signed: true })}
+              {stats.daysWorked} dias · {stats.dayOffTotal} folgas · extras {formatDuration(stats.extraMs + stats.extraDoubleMs)}
               {settings.hourlyRate > 0 ? ` · ${formatMoney(simpleGrossCents(stats.workedMs, settings.hourlyRate))}` : ''}
             </Text>
           </Card>
@@ -235,18 +235,30 @@ export function Today() {
   );
 }
 
-function ForecastLine({ forecast }: { forecast: ReturnType<typeof forecastGoal> }) {
+function ForecastLine({
+  forecast,
+  limitLabel,
+  compensation,
+}: {
+  forecast: ReturnType<typeof forecastGoal>;
+  limitLabel: string;
+  compensation: boolean;
+}) {
   let text: string | null = null;
   let color: 'textMuted' | 'work' = 'textMuted';
   switch (forecast.kind) {
     case 'working':
-      text = `Faltam ${formatDuration(forecast.remainingMs)} · completa a meta às ${formatTime(forecast.reachAt)}`;
+      text = `Faltam ${formatDuration(forecast.remainingMs)} para ${limitLabel} · às ${formatTime(forecast.reachAt)}`;
       break;
     case 'break':
-      text = `Faltam ${formatDuration(forecast.remainingMs)} · se voltar agora, completa às ${formatTime(forecast.reachIfResumeNowAt)}`;
+      text = `Faltam ${formatDuration(forecast.remainingMs)} para ${limitLabel} · se voltar agora, às ${formatTime(forecast.reachIfResumeNowAt)}`;
       break;
     case 'done':
-      text = forecast.overMs >= MINUTE ? `Meta batida · +${formatDuration(forecast.overMs)}` : 'Meta batida';
+      // Com compensação, passar do limite do dia não é extra por si só (conta a semana)
+      text =
+        forecast.overMs >= MINUTE
+          ? `+${formatDuration(forecast.overMs)} além de ${limitLabel}${compensation ? ' · compensação semanal' : ''}`
+          : `${limitLabel} completas`;
       color = 'work';
       break;
   }

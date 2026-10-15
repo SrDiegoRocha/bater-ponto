@@ -6,7 +6,7 @@ import Svg, { Circle } from 'react-native-svg';
 import { spring, useTheme, type ColorTokens } from '@/theme';
 
 // Anel de progresso com a mesma geometria do logo: começa às 12h e corre no sentido horário (§6.2).
-// Progresso > 1 desenha uma segunda volta mais clara (passou da meta).
+// Progresso > 1 desenha uma segunda volta mais clara (passou do limite).
 
 const AnimatedCircle = Animated.createAnimatedComponent(Circle);
 

@@ -1,10 +1,10 @@
-import { DEFAULT_GOAL } from './balance';
 import { computeCltPay, type CltConfig } from './clt';
 import { holidaysInRange } from './holidays';
 import { getPeriodContaining } from './period';
 import type { WorkdayInput } from './stats';
 import { inss, irrf } from './tax-2026';
 import { HOUR } from './time';
+import { CLT_RULES } from './work-rules';
 
 const t = (iso: string) => new Date(iso).getTime();
 
@@ -47,7 +47,7 @@ describe('computeCltPay', () => {
   const holidays = holidaysInRange(period.start, period.end, []);
   const config: CltConfig = {
     hourlyRate: 20,
-    goal: DEFAULT_GOAL,
+    rules: CLT_RULES,
     overtimePct: 50,
     holidayOvertimePct: 100,
     nightPct: 20,

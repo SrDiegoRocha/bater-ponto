@@ -1,6 +1,6 @@
 import type { SQLiteDatabase } from 'expo-sqlite';
 
-import type { DailyGoalConfig } from '@/domain/balance';
+import { CLT_RULES, type WorkRules } from '@/domain/work-rules';
 
 // Configurações em chave/valor (JSON). Os padrões vivem aqui, então uma chave ausente no banco
 // sempre tem um valor válido.
@@ -11,7 +11,8 @@ export type Settings = {
   onboardingDone: boolean;
   periodStartDay: number;
   hourlyRate: number;
-  dailyGoal: DailyGoalConfig;
+  /** Regras da jornada (limites da CLT ou do contrato); substituem a antiga meta diária */
+  workRules: WorkRules;
   minRestMinutes: number;
   maxWorkdayMinutes: number;
   salaryMode: 'simple' | 'clt';
@@ -40,7 +41,7 @@ export const DEFAULT_SETTINGS: Settings = {
   onboardingDone: false,
   periodStartDay: 21,
   hourlyRate: 0,
-  dailyGoal: { defaultMinutes: 480 },
+  workRules: CLT_RULES,
   minRestMinutes: 660,
   maxWorkdayMinutes: 1440,
   salaryMode: 'simple',
