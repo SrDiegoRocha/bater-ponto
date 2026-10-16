@@ -394,11 +394,15 @@ O projeto está ligado ao EAS como `@diegorocha/bater-ponto` (pacote `com.diegor
 
 | Perfil | Para quê | Comando |
 |---|---|---|
-| `preview` | APK para instalar direto no celular | `npx eas-cli@latest build -p android --profile preview` |
-| `development` | Dev client (APK) para desenvolver com recarga rápida | `npx eas-cli@latest build -p android --profile development` |
+| `preview` | APK para instalar direto no celular (versionCode automático: instala por cima do anterior) | `npm run build:apk` |
+| `development` | Dev client (APK) para desenvolver com recarga rápida | `npm run build:dev` |
 | `production` | AAB para a Play Store (versionCode automático) | `npx eas-cli@latest build -p android --profile production` |
 
 Ao terminar, o EAS mostra um link/QR code para baixar o APK no celular.
+
+**Antes de cada build:** `npx expo-doctor` e `npm run typecheck && npm run lint && npm test`. No primeiro build o EAS pergunta se pode gerar a chave de assinatura (keystore): responda **sim** e ela fica guardada na conta Expo. Use sempre a mesma chave, senão o Android não deixa instalar a versão nova por cima.
+
+Permissões do APK: internet, vibração, biometria e notificações. As de armazenamento e "sobrepor a outros apps" vêm do template e são bloqueadas em `android.blockedPermissions` (o backup e o PDF usam o seletor de arquivos e o compartilhamento do sistema).
 
 As pastas `android/` e `ios/` **não** são versionadas: são geradas pelo Expo (Continuous Native Generation). Configure tudo em `app.json` e config plugins.
 
