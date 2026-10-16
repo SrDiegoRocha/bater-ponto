@@ -5,7 +5,7 @@ import { useState } from 'react';
 import { Alert, Share, StyleSheet, View } from 'react-native';
 
 import { dayOffLabel } from '@/components/calendar/calendar-grid';
-import { Button, Card, ChoiceChips, Icon, PressableScale, Screen, Text } from '@/components/ui';
+import { Button, Card, FilterChips, Icon, PressableScale, Screen, Text } from '@/components/ui';
 import { useSelectedPeriod } from '@/hooks/use-period-stats';
 import { useTimesheetCheck } from '@/hooks/use-timesheet-check';
 import { periodLabel, periodRangeLabel } from '@/domain/period';
@@ -95,11 +95,11 @@ export function TimesheetCheck() {
         ) : null}
       </Card>
 
-      <ChoiceChips
+      <FilterChips
         options={[
-          { value: 'all', label: 'Todos' },
-          { value: 'pending', label: `A conferir (${summary.pending})` },
-          { value: 'diff', label: `Diferentes (${summary.diffs})` },
+          { value: 'all', label: 'Todos', count: summary.total },
+          { value: 'pending', label: 'A conferir', icon: 'pending', color: 'break', count: summary.pending },
+          { value: 'diff', label: 'Diferentes', icon: 'error', color: 'danger', count: summary.diffs },
         ]}
         value={filter}
         onChange={setFilter}

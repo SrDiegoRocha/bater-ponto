@@ -27,17 +27,19 @@ export async function listHolidayOverrides(db: SQLiteDatabase): Promise<HolidayO
 
 export async function addCustomHoliday(
   db: SQLiteDatabase,
-  h: { name: string; date: DateKey; recurring: boolean },
-): Promise<void> {
+  h: { name: string; date: DateKey; recurring: boolean; id?: string },
+): Promise<string> {
+  const id = h.id ?? randomUUID();
   await db.runAsync(
     'INSERT INTO holiday_override (id, kind, date, month_day, name, created_at) VALUES (?, ?, ?, ?, ?, ?)',
-    randomUUID(),
+    id,
     'custom',
     h.recurring ? null : h.date,
     h.recurring ? h.date.slice(5) : null,
     h.name,
     Date.now(),
   );
+  return id;
 }
 
 export async function disableHoliday(db: SQLiteDatabase, holidayKey: string, year: number | null): Promise<void> {
@@ -61,4 +63,8 @@ export async function enableHoliday(db: SQLiteDatabase, holidayKey: string, year
 
 export async function deleteCustomHoliday(db: SQLiteDatabase, id: string): Promise<void> {
   await db.runAsync("DELETE FROM holiday_override WHERE kind = 'custom' AND id = ?", id);
+}
+
+export async function renameCustomHoliday(db: SQLiteDatabase, id: string, name: string): Promise<void> {
+  await db.runAsync("UPDATE holiday_override SET name = ? WHERE kind = 'custom' AND id = ?", name, id);
 }

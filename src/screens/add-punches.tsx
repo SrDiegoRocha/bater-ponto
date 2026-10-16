@@ -2,10 +2,10 @@ import * as Haptics from 'expo-haptics';
 import { router } from 'expo-router';
 import { useSQLiteContext } from 'expo-sqlite';
 import { useState } from 'react';
-import { Alert } from 'react-native';
+import { Alert, StyleSheet, View } from 'react-native';
 
 import { TimeField } from '@/components/time/time-field';
-import { Button, ChoiceChips, Text } from '@/components/ui';
+import { Button, ChoiceChips, Icon, Text } from '@/components/ui';
 import { useDbQuery } from '@/hooks/use-db-query';
 import { toDateKey } from '@/domain/time';
 import { minuteOfDay, nextOccurrence, type MinuteOfDay } from '@/domain/time-of-day';
@@ -14,6 +14,7 @@ import { getWorkday } from '@/db/workday-repo';
 import { formatShortDate, formatTime } from '@/lib/format';
 import { addPunchesToWorkday } from '@/services/punch-service';
 import { showToast } from '@/stores/ui-store';
+import { spacing } from '@/theme';
 
 import { SheetContainer } from './sheet-container';
 
@@ -84,11 +85,26 @@ export function AddPunches({ workdayId }: { workdayId: string }) {
           onChange={setKind}
         />
       ) : null}
-      <TimeField label={mode === 'shift' ? 'Entrada' : 'Horário'} value={s} onChange={setStart} nextDay={toDateKey(startAt) !== refDate} />
-      {mode === 'shift' ? (
-        <TimeField label="Saída" value={e} onChange={setEnd} nextDay={toDateKey(endAt) !== refDate} />
-      ) : null}
+      <View style={styles.times}>
+        <TimeField
+          label={mode === 'shift' ? 'Entrada' : kind === 'in' ? 'Entrada' : 'Saída'}
+          accent={mode === 'single' && kind === 'out' ? 'break' : 'work'}
+          value={s}
+          onChange={setStart}
+          nextDay={toDateKey(startAt) !== refDate}
+        />
+        {mode === 'shift' ? (
+          <>
+            <Icon name="arrow_forward" size={20} color="textMuted" />
+            <TimeField label="Saída" accent="break" value={e} onChange={setEnd} nextDay={toDateKey(endAt) !== refDate} />
+          </>
+        ) : null}
+      </View>
       <Button label="Adicionar" size="lg" block onPress={save} />
     </SheetContainer>
   );
 }
+
+const styles = StyleSheet.create({
+  times: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+});

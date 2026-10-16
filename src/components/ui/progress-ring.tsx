@@ -6,7 +6,7 @@ import Svg, { Circle } from 'react-native-svg';
 import { spring, useTheme, type ColorTokens } from '@/theme';
 
 // Anel de progresso com a mesma geometria do logo: começa às 12h e corre no sentido horário (§6.2).
-// Progresso > 1 desenha uma segunda volta mais clara (passou do limite).
+// Progresso > 1 desenha uma segunda volta na cor de hora extra (passou do limite).
 
 const AnimatedCircle = Animated.createAnimatedComponent(Circle);
 
@@ -61,7 +61,7 @@ export function ProgressRing({ progress, size = 240, strokeWidth, color = 'prima
       <Svg width={size} height={size} style={{ position: 'absolute' }}>
         <Circle {...common} stroke={colors.border} strokeDasharray={undefined} />
         <AnimatedCircle {...common} stroke={colors[color]} animatedProps={firstLap} />
-        <AnimatedCircle {...common} stroke={colors.text} strokeOpacity={0.35} animatedProps={secondLap} />
+        <AnimatedCircle {...common} stroke={colors.extra} animatedProps={secondLap} />
       </Svg>
       {children}
     </View>

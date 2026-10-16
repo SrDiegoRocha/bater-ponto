@@ -58,3 +58,21 @@ export function formatMoney(cents: number): string {
   const centavos = String(abs % 100).padStart(2, '0');
   return `${negative ? '−' : ''}R$ ${reais},${centavos}`;
 }
+
+const WEEKDAY_SHORT = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sáb'];
+
+/** "seg" — sempre 3 letras (o locale do date-fns às vezes devolve o nome inteiro) */
+export function formatWeekdayShort(date: DateKey | number): string {
+  const d = typeof date === 'string' ? fromDateKey(date) : new Date(date);
+  return WEEKDAY_SHORT[d.getDay()];
+}
+
+/** "12–18 out" no mesmo mês, "28 set – 4 out" quando vira o mês */
+export function formatDayRange(start: DateKey, end: DateKey): string {
+  const a = fromDateKey(start);
+  const b = fromDateKey(end);
+  const month = (d: Date) => format(d, 'MMM', { locale: ptBR }).replace(/\./g, '');
+  return a.getMonth() === b.getMonth()
+    ? `${a.getDate()}–${b.getDate()} ${month(b)}`
+    : `${a.getDate()} ${month(a)} – ${b.getDate()} ${month(b)}`;
+}

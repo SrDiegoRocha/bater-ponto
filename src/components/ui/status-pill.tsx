@@ -29,7 +29,7 @@ export function StatusPill({ status, label }: { status: StatusKind; label?: stri
       style={[styles.pill, { backgroundColor: colors.surfaceRaised, borderColor: colors.border }]}
     >
       <Icon name={c.icon} size={20} color={c.color} />
-      <Text variant="micro" color={c.color}>
+      <Text variant="micro" color={c.color} style={styles.text}>
         {label ?? c.label}
       </Text>
     </View>
@@ -47,5 +47,7 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.xs,
     borderRadius: radius.full,
     borderWidth: StyleSheet.hairlineWidth,
+    maxWidth: '100%',
   },
+  text: { flexShrink: 1 },
 });

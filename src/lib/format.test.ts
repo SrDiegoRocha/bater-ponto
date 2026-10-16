@@ -1,6 +1,6 @@
 import { HOUR, MINUTE } from '@/domain/time';
 
-import { formatClock, formatDuration, formatLongDay, formatMoney, formatShortDate } from './format';
+import { formatClock, formatDayRange, formatDuration, formatLongDay, formatMoney, formatShortDate, formatWeekdayShort } from './format';
 
 describe('formatDuration', () => {
   it.each([
@@ -34,4 +34,16 @@ it('formatMoney', () => {
 it('datas em pt-BR', () => {
   expect(formatShortDate('2026-10-14')).toBe('qua, 14 out');
   expect(formatLongDay('2026-10-13')).toBe('Terça, 13 out');
+});
+
+describe('formatos curtos', () => {
+  it('dia da semana com 3 letras', () => {
+    expect(formatWeekdayShort('2026-10-12')).toBe('seg');
+    expect(formatWeekdayShort('2026-10-17')).toBe('sáb');
+  });
+
+  it('intervalo de dias compacto', () => {
+    expect(formatDayRange('2026-10-12', '2026-10-18')).toBe('12–18 out');
+    expect(formatDayRange('2026-09-28', '2026-10-04')).toBe('28 set – 4 out');
+  });
 });

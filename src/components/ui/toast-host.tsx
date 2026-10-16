@@ -41,7 +41,7 @@ export function ToastHost() {
         accessibilityLiveRegion="polite"
         style={[styles.toast, { backgroundColor: background }]}
       >
-        <Text variant="body" style={[styles.message, { color: foreground }]} numberOfLines={2}>
+        <Text variant="body" style={[styles.message, { color: foreground }]} numberOfLines={3}>
           {toast.message}
         </Text>
         {toast.actions.map((action) => (

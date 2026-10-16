@@ -100,7 +100,7 @@ export function PeriodSettings() {
 
 export function WorkdaySettings() {
   const db = useSQLiteContext();
-  const { workRules: rules } = useSettings();
+  const { workRules: rules, splitBreak } = useSettings();
   const update = useSettingsStore((st) => st.update);
   const hours = (m: number) => formatDuration(m * MINUTE);
   const set = (patch: Partial<WorkRules>) => update(db, { workRules: { ...rules, ...patch } });
@@ -158,6 +158,15 @@ export function WorkdaySettings() {
           subtitle="Ex.: 8h48 de segunda a sexta para folgar no sábado. Só conta extra o que passar do limite da semana (ou de 10h no dia). Ligue só se tiver esse acordo por escrito."
           value={rules.compensation}
           onValueChange={(v) => set({ compensation: v })}
+        />
+      </Card>
+
+      <Card style={styles.gap}>
+        <SwitchRow
+          title="Intervalo fracionado (motorista)"
+          subtitle="Para motoristas, cobradores e fiscais de transporte coletivo com convenção coletiva (CLT art. 71 §5º): o intervalo pode ser dividido em vários e ter menos de 1h, desde que fique depois da 1ª hora e antes da última hora de trabalho."
+          value={splitBreak}
+          onValueChange={(v) => update(db, { splitBreak: v })}
         />
       </Card>
 
@@ -222,6 +231,24 @@ export function ReminderSettings() {
           />
           <Divider />
           <SwitchRow
+            title="Fim do intervalo"
+            subtitle="Avisa quando o intervalo completar esse tempo, para você saber a hora de voltar"
+            value={r.breakEnd}
+            onValueChange={(v) => set({ breakEnd: v })}
+          />
+          {r.breakEnd ? (
+            <Stepper
+              label="Duração do intervalo"
+              value={r.breakEndMinutes}
+              min={15}
+              max={4 * 60}
+              step={15}
+              format={(m) => formatDuration(m * MINUTE)}
+              onChange={(v) => set({ breakEndMinutes: v })}
+            />
+          ) : null}
+          <Divider />
+          <SwitchRow
             title="Intervalo longo"
             subtitle="Avisa se o intervalo passar desse tempo sem você anotar a volta"
             value={r.longBreak}
@@ -245,7 +272,11 @@ export function ReminderSettings() {
             value={r.endOfDay}
             onValueChange={(v) => set({ endOfDay: v })}
           />
-          {r.endOfDay ? <TimeField label="Horário" value={r.endOfDayMinutes} onChange={(v) => set({ endOfDayMinutes: v })} /> : null}
+          {r.endOfDay ? (
+            <View style={styles.fieldRow}>
+              <TimeField label="Horário do aviso" value={r.endOfDayMinutes} onChange={(v) => set({ endOfDayMinutes: v })} />
+            </View>
+          ) : null}
         </Card>
       ) : null}
 
@@ -258,7 +289,7 @@ export function ReminderSettings() {
 }
 
 const LOCK_AFTER = [
-  { value: '0', label: 'Imediatamente' },
+  { value: '0', label: 'Na hora' },
   { value: '60', label: '1 min' },
   { value: '300', label: '5 min' },
   { value: '900', label: '15 min' },
@@ -497,4 +528,5 @@ const styles = StyleSheet.create({
   list: { paddingVertical: spacing.xs },
   gap: { gap: spacing.md },
   about: { alignItems: 'center', gap: spacing.sm, paddingTop: spacing.xl },
+  fieldRow: { flexDirection: 'row' },
 });

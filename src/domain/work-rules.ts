@@ -130,3 +130,21 @@ export function describeRules(rules: WorkRules): string {
   const h = (m: number) => (m % 60 ? `${Math.floor(m / 60)}h${String(m % 60).padStart(2, '0')}` : `${m / 60}h`);
   return `${h(rules.dailyLimitMinutes)} por dia · ${h(rules.weeklyLimitMinutes)} por semana`;
 }
+
+/**
+ * Horas da semana (seg–dom) que contam para o limite semanal, até agora: feriado/folga ficam de fora
+ * (já são extra 100%). Usa a classificação do período e os dias da semana anteriores ao período.
+ */
+export function weekWorkedMs(
+  date: DateKey,
+  classified: ReadonlyMap<DateKey, DayOvertime>,
+  leadDays: readonly DayHours[] = [],
+): { start: DateKey; end: DateKey; workedMs: number } {
+  const start = weekStart(date);
+  const end = addDaysToKey(start, 6);
+  const inWeek = (d: DateKey) => d >= start && d <= end;
+  let workedMs = 0;
+  for (const [d, o] of classified) if (inWeek(d)) workedMs += o.normalMs + o.extraMs;
+  for (const day of leadDays) if (inWeek(day.date) && !day.premium && !classified.has(day.date)) workedMs += day.workedMs;
+  return { start, end, workedMs };
+}

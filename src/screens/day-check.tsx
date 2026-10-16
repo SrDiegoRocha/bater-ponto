@@ -4,7 +4,7 @@ import { useSQLiteContext } from 'expo-sqlite';
 import { useState } from 'react';
 import { StyleSheet, TextInput } from 'react-native';
 
-import { TimeTyper } from '@/components/time/time-typer';
+import { EMPTY_TIME, TimeTyper } from '@/components/time/time-typer';
 import { Banner, Button, Card, Screen, Text } from '@/components/ui';
 import { useDbQuery } from '@/hooks/use-db-query';
 import { useNow } from '@/hooks/use-now';
@@ -23,7 +23,7 @@ import { fonts, radius, spacing, useTheme } from '@/theme';
 
 const pad = (n: number) => String(n).padStart(2, '0');
 const toDigits = (ms: number | null) => {
-  if (ms === null) return '';
+  if (ms === null) return EMPTY_TIME;
   const minutes = Math.round(ms / MINUTE);
   return `${pad(Math.floor(minutes / 60))}${pad(minutes % 60)}`;
 };
@@ -52,7 +52,7 @@ function DayCheckForm({ date, saved, workdays }: { date: DateKey; saved: DayChec
   const companyMinutes = parseTypedTime(digits);
   const companyMs = companyMinutes !== null ? companyMinutes * MINUTE : null;
   const diffMs = companyMs !== null ? companyMs - workedMs : null;
-  const invalid = digits.length === 4 && companyMinutes === null;
+  const invalid = !digits.includes(' ') && companyMinutes === null;
 
   async function save(check: Omit<DayCheck, 'date'> | null) {
     if (check) await saveDayChecks(db, [{ date, ...check }]);
@@ -115,7 +115,7 @@ function DayCheckForm({ date, saved, workdays }: { date: DateKey; saved: DayChec
         <Text variant="micro" color="textMuted">
           Horas trabalhadas no espelho da empresa
         </Text>
-        <TimeTyper digits={digits} onChangeDigits={setDigits} invalid={invalid} autoFocus={false} />
+        <TimeTyper value={digits} onChange={setDigits} invalid={invalid} autoFocus={false} />
         <Text
           variant="body"
           align="center"

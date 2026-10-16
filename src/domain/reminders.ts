@@ -6,6 +6,7 @@ import type { DateKey } from './types';
 //
 // 1. Passou do limite: trabalhando e o dia passou do limite diário há 15 min → "já anotou a saída?"
 // 2. Intervalo longo: em intervalo há mais de X horas → "ainda no intervalo?"
+// 2b. Fim do intervalo: o intervalo chegou ao tempo escolhido (padrão 1h, o mínimo da CLT) → hora de voltar
 // 3. Fim do dia: num horário fixo, se nada foi anotado no dia. Só nos dias da semana em que a pessoa
 //    costuma trabalhar (aprendido pelas últimas semanas), fora folgas e feriados.
 //
@@ -17,6 +18,8 @@ export type ReminderSettings = {
   overLimit: boolean;
   longBreak: boolean;
   longBreakMinutes: number;
+  breakEnd: boolean;
+  breakEndMinutes: number;
   endOfDay: boolean;
   /** Minutos desde 00:00 */
   endOfDayMinutes: number;
@@ -27,6 +30,8 @@ export const DEFAULT_REMINDERS: ReminderSettings = {
   overLimit: true,
   longBreak: true,
   longBreakMinutes: 180,
+  breakEnd: false,
+  breakEndMinutes: 60,
   endOfDay: true,
   endOfDayMinutes: 21 * 60,
 };
@@ -97,6 +102,20 @@ export function planReminders({
         at,
         title: 'Ainda no intervalo?',
         body: 'Se você já voltou ao trabalho, anote a volta do intervalo.',
+        href: '/bater',
+      });
+    }
+  }
+
+  // 2b. O intervalo completou o tempo combinado
+  if (settings.breakEnd && last?.kind === 'out') {
+    const at = last.at + settings.breakEndMinutes * MINUTE;
+    if (at > now) {
+      plan.push({
+        id: `${REMINDER_ID_PREFIX}fim-intervalo`,
+        at,
+        title: 'Seu intervalo terminou',
+        body: 'Quando voltar ao trabalho, anote a volta do intervalo.',
         href: '/bater',
       });
     }

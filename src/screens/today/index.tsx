@@ -3,28 +3,28 @@ import { useSQLiteContext } from 'expo-sqlite';
 import { useEffect } from 'react';
 import { StyleSheet, View } from 'react-native';
 
-import { Banner, Button, Card, Icon, ProgressRing, Screen, StatusPill, Text } from '@/components/ui';
+import { Banner, Button, Card, Icon, Screen, StatusPill, Text } from '@/components/ui';
 import { PressableScale } from '@/components/ui/pressable-scale';
 import { dayOffLabel } from '@/components/calendar/calendar-grid';
 import { Timeline } from '@/components/workday/timeline';
 import { useDbQuery } from '@/hooks/use-db-query';
 import { useNow } from '@/hooks/use-now';
 import { useCurrentPeriod, usePeriodStats } from '@/hooks/use-period-stats';
-import { forecastGoal } from '@/domain/forecast';
 import { periodDates, periodLabel, periodRangeLabel } from '@/domain/period';
 import { simpleGrossCents } from '@/domain/salary';
 import { deriveDayState, type DayState } from '@/domain/state-machine';
 import { HOUR, MINUTE, toDateKey } from '@/domain/time';
 import { MIN_REST_MS } from '@/domain/validation';
+import { weekWorkedMs } from '@/domain/work-rules';
 import { summarizeWorkday } from '@/domain/workday';
 import { countIncompleteWorkdays, getOpenWorkday, listRecentWorkdays } from '@/db/workday-repo';
-import { formatDuration, formatLongDay, formatMoney, formatShortDate, formatTime } from '@/lib/format';
+import { formatDayRange, formatDuration, formatLongDay, formatMoney, formatShortDate, formatTime } from '@/lib/format';
 import { clearDayOffs } from '@/services/punch-service';
 import { updateQuickActions } from '@/services/quick-actions';
 import { useSettings } from '@/stores/settings-store';
-import { minTouch, spacing } from '@/theme';
+import { minTouch, radius, spacing, useTheme, type ColorTokens } from '@/theme';
 
-import { LiveClock } from './live-clock';
+import { TodayHero } from './live-clock';
 
 // O ponto oficial é batido no app da empresa; aqui o usuário só anota o horário que ele mostrou
 // para conferir as horas e o salário.
@@ -43,7 +43,7 @@ export function Today() {
   const now = useNow();
   const today = toDateKey(now);
   const period = useCurrentPeriod();
-  const { stats } = usePeriodStats(period);
+  const { stats, leadDays } = usePeriodStats(period);
 
   const { data } = useDbQuery(
     async (d) => ({
@@ -68,23 +68,14 @@ export function Today() {
     (lastClosed && (lastClosed.refDate === today || (lastEnd !== null && toDateKey(lastEnd) === today)) ? lastClosed : null);
   const summary = shown ? summarizeWorkday(shown.punches, now) : null;
 
-  const runningSegment = summary?.segments.find((s) => s.open) ?? null;
-  const closedMs = (summary?.workedMs ?? 0) - (runningSegment ? runningSegment.end - runningSegment.start : 0);
-
   const dayStatus = stats?.days.get(today);
   const todayDayOff = dayStatus?.type === 'dayOff' ? dayStatus.kind : null;
   const holiday = dayStatus && 'holiday' in dayStatus ? dayStatus.holiday : null;
-  // O anel mostra o dia até o limite diário: o que passar dele tende a ser hora extra
-  const goal = settings.workRules.dailyLimitMinutes * MINUTE;
-  const progress = goal > 0 ? (summary?.workedMs ?? 0) / goal : 0;
+  const limitMs = settings.workRules.dailyLimitMinutes * MINUTE;
 
   const restMs = state === 'off' && lastEnd !== null ? now - lastEnd : null;
   const openForMs = open?.punches[0] ? now - open.punches[0].at : 0;
   const daysLeft = periodDates(period).filter((d) => d >= today).length;
-
-  // Previsão do limite do dia (folga/feriado: tudo já é extra, sem previsão)
-  const realGoal = todayDayOff || holiday ? 0 : goal;
-  const forecast = forecastGoal(summary?.workedMs ?? 0, realGoal, state, now);
 
   // Nada anotado hoje: quem copia tudo no fim do dia prefere cadastrar a jornada inteira de uma vez
   const nothingToday = state === 'off' && !shown;
@@ -102,7 +93,7 @@ export function Today() {
   return (
     <Screen
       title={formatLongDay(today)}
-      subtitle={`${periodLabel(period)} · ${periodRangeLabel(period)} · faltam ${daysLeft} dias`}
+      subtitle={`${periodLabel(period)} · ${periodRangeLabel(period)} · ${daysLeft === 1 ? 'último dia' : `faltam ${daysLeft} dias`}`}
       headerRight={
         <PressableScale
           accessibilityRole="button"
@@ -138,96 +129,126 @@ export function Today() {
 
       {holiday ? <StatusPill status="holiday" label={`Feriado · ${holiday.name}`} /> : null}
 
-      <View style={styles.hero}>
-        <ProgressRing progress={progress} size={260} color={state === 'break' ? 'break' : 'work'}>
-          <View style={styles.ringContent}>
-            <LiveClock baseMs={closedMs} runningSince={runningSegment?.start ?? null} />
-            <StatusPill status={state === 'working' ? 'work' : state === 'break' ? 'break' : 'off'} />
-            <Text variant="caption" color="textMuted" tabular>
-              limite {formatDuration(goal)}
-            </Text>
-          </View>
-        </ProgressRing>
-      </View>
-
-      <ForecastLine forecast={forecast} limitLabel={formatDuration(goal)} compensation={settings.workRules.compensation} />
-
       {todayDayOff && state === 'off' ? (
         <Card style={styles.dayOffCard}>
-          <Text variant="headline">Hoje é {dayOffLabel[todayDayOff].toLowerCase()} 🌴</Text>
-          <Button label="Trabalhar mesmo assim" variant="ghost" size="sm" onPress={workAnyway} />
+          <Icon name="beach_access" size={32} color="dayOff" />
+          <Text variant="title2" align="center">
+            Hoje é {dayOffLabel[todayDayOff].toLowerCase()}
+          </Text>
+          <Text variant="body" color="textMuted" align="center">
+            Se precisou trabalhar, anote normalmente: as horas contam como extra 100%.
+          </Text>
+          <Button label="Trabalhei mesmo assim" icon="edit" variant="secondary" onPress={workAnyway} />
         </Card>
       ) : (
-        <View style={styles.actions}>
-          <Button label={entryLabel[state]} icon="edit" size="lg" block onPress={() => router.push('/bater')} />
-          {nothingToday ? (
-            <>
-              <Button
-                label="Anotar o dia inteiro"
-                icon="view_timeline"
-                variant="secondary"
-                block
-                onPress={() => router.push({ pathname: '/jornada/nova', params: { date: today } })}
-              />
-              <Button
-                label="Marcar folga hoje"
-                icon="beach_access"
-                variant="ghost"
-                onPress={() => router.push({ pathname: '/folga', params: { dates: today } })}
-              />
-            </>
-          ) : null}
-        </View>
+        <>
+          <TodayHero
+            punches={shown?.punches ?? null}
+            state={state}
+            limitMs={limitMs}
+            premiumDay={!!holiday || !!todayDayOff}
+            compensation={settings.workRules.compensation}
+          />
+
+          <View style={styles.actions}>
+            <Button label={entryLabel[state]} icon="edit" size="lg" block onPress={() => router.push('/bater')} />
+            {nothingToday ? (
+              <View style={styles.secondaryRow}>
+                <View style={styles.flex}>
+                  <Button
+                    label="Dia inteiro"
+                    icon="view_timeline"
+                    variant="secondary"
+                    block
+                    onPress={() => router.push({ pathname: '/jornada/nova', params: { date: today } })}
+                  />
+                </View>
+                <View style={styles.flex}>
+                  <Button
+                    label="Folga hoje"
+                    icon="beach_access"
+                    variant="secondary"
+                    block
+                    onPress={() => router.push({ pathname: '/folga', params: { dates: today } })}
+                  />
+                </View>
+              </View>
+            ) : null}
+          </View>
+        </>
       )}
 
       {state === 'off' && lastClosed && lastEnd !== null && shown !== lastClosed ? (
-        <Card style={styles.gapSm}>
+        <Card style={styles.lastCard}>
           <Text variant="micro" color="textMuted">
             Última jornada
           </Text>
-          <Text variant="body" tabular>
-            {formatShortDate(lastClosed.refDate)} · {formatTime(lastClosed.punches[0].at)} → {formatTime(lastEnd)} ·{' '}
-            {formatDuration(summarizeWorkday(lastClosed.punches, now).workedMs)}
-          </Text>
-          {restMs !== null ? (
-            <Text variant="caption" color={restMs < MIN_REST_MS ? 'break' : 'textMuted'} tabular>
-              Descansando há {formatDuration(restMs)}
-              {restMs < MIN_REST_MS ? ' · abaixo das 11h de interjornada' : ''}
+          <View style={styles.lastRow}>
+            <Text variant="headline" style={styles.flex}>
+              {formatShortDate(lastClosed.refDate)}
             </Text>
+            <Text variant="body" color="textMuted" tabular>
+              {formatTime(lastClosed.punches[0].at)} → {formatTime(lastEnd)}
+            </Text>
+            <Text variant="headline" tabular>
+              {formatDuration(summarizeWorkday(lastClosed.punches, now).workedMs)}
+            </Text>
+          </View>
+          {restMs !== null ? (
+            <View style={styles.lastRow}>
+              <Icon name="bedtime" size={20} color={restMs < MIN_REST_MS ? 'break' : 'textMuted'} />
+              <Text variant="caption" color={restMs < MIN_REST_MS ? 'break' : 'textMuted'} tabular style={styles.flex}>
+                Descansando há {formatDuration(restMs)}
+                {restMs < MIN_REST_MS ? ` · a CLT pede 11h entre jornadas (liberado às ${formatTime(lastEnd + MIN_REST_MS)})` : ''}
+              </Text>
+            </View>
           ) : null}
         </Card>
       ) : null}
 
       {shown && shown.punches.length > 0 ? (
-        <Card>
+        <Card style={styles.timelineCard}>
           <View style={styles.cardHeader}>
             <Text variant="micro" color="textMuted">
-              Linha do tempo
+              Batidas de hoje
             </Text>
-            <Button label="Detalhes" variant="ghost" size="sm" onPress={() => router.push(`/jornada/${shown.id}`)} />
+            <Button label="Ver jornada" variant="ghost" size="sm" onPress={() => router.push(`/jornada/${shown.id}`)} />
           </View>
-          <Timeline punches={shown.punches} now={now} onPressPunch={(p) => router.push(`/batida/${p.id}`)} />
+          <Timeline punches={shown.punches} now={now} editable live={shown.status === 'open'} />
           {summary ? (
-            <Text variant="caption" color="textMuted" tabular style={styles.totals}>
-              Trabalhado {formatDuration(summary.workedMs)} · Intervalo {formatDuration(summary.breakMs)}
-            </Text>
+            <View style={styles.totals}>
+              <Total label="Trabalhado" value={formatDuration(summary.workedMs)} color="work" />
+              <Total label="Intervalo" value={formatDuration(summary.breakMs)} color="break" />
+              <Total label="Turnos" value={String(summary.segments.length)} color="text" />
+            </View>
           ) : null}
+          <Text variant="caption" color="textMuted" align="center">
+            Toque numa batida para ajustar · segure para excluir
+          </Text>
         </Card>
       ) : null}
 
+      {stats ? <WeekCard week={weekWorkedMs(today, stats.overtime, leadDays)} limitMs={settings.workRules.weeklyLimitMinutes * MINUTE} /> : null}
+
       {stats ? (
-        <PressableScale scaleTo={0.98} onPress={() => router.navigate('/resumo')} accessibilityRole="button">
-          <Card style={styles.gapSm}>
-            <Text variant="micro" color="textMuted">
-              Período · {periodRangeLabel(period)}
-            </Text>
-            <Text variant="title2" tabular>
-              {formatDuration(stats.workedMs)} trabalhadas
-            </Text>
-            <Text variant="caption" color="textMuted" tabular>
-              {stats.daysWorked} dias · {stats.dayOffTotal} folgas · extras {formatDuration(stats.extraMs + stats.extraDoubleMs)}
-              {settings.hourlyRate > 0 ? ` · ${formatMoney(simpleGrossCents(stats.workedMs, settings.hourlyRate))}` : ''}
-            </Text>
+        <PressableScale scaleTo={0.98} onPress={() => router.navigate('/resumo')} accessibilityRole="button" accessibilityHint="Abre o resumo do período">
+          <Card style={styles.periodCard}>
+            <View style={styles.cardHeader}>
+              <Text variant="micro" color="textMuted">
+                Período · {periodRangeLabel(period)}
+              </Text>
+              <Icon name="chevron_right" size={20} color="textMuted" />
+            </View>
+            <View style={styles.totals}>
+              <Total label="Trabalhadas" value={formatDuration(stats.workedMs)} color="work" />
+              <Total label="Extras" value={formatDuration(stats.extraMs + stats.extraDoubleMs)} color="extra" />
+              <Total label="Dias" value={String(stats.daysWorked)} color="text" />
+            </View>
+            {settings.hourlyRate > 0 ? (
+              <Text variant="caption" color="textMuted" tabular>
+                Estimativa bruta até agora: <Text variant="caption" color="money">{formatMoney(simpleGrossCents(stats.workedMs, settings.hourlyRate))}</Text>
+              </Text>
+            ) : null}
           </Card>
         </PressableScale>
       ) : null}
@@ -235,49 +256,60 @@ export function Today() {
   );
 }
 
-function ForecastLine({
-  forecast,
-  limitLabel,
-  compensation,
-}: {
-  forecast: ReturnType<typeof forecastGoal>;
-  limitLabel: string;
-  compensation: boolean;
-}) {
-  let text: string | null = null;
-  let color: 'textMuted' | 'work' = 'textMuted';
-  switch (forecast.kind) {
-    case 'working':
-      text = `Faltam ${formatDuration(forecast.remainingMs)} para ${limitLabel} · às ${formatTime(forecast.reachAt)}`;
-      break;
-    case 'break':
-      text = `Faltam ${formatDuration(forecast.remainingMs)} para ${limitLabel} · se voltar agora, às ${formatTime(forecast.reachIfResumeNowAt)}`;
-      break;
-    case 'done':
-      // Com compensação, passar do limite do dia não é extra por si só (conta a semana)
-      text =
-        forecast.overMs >= MINUTE
-          ? `+${formatDuration(forecast.overMs)} além de ${limitLabel}${compensation ? ' · compensação semanal' : ''}`
-          : `${limitLabel} completas`;
-      color = 'work';
-      break;
-  }
-  if (!text) return null;
+/** Banco da semana: horas de seg a dom que contam para o limite semanal (44h pela CLT) */
+function WeekCard({ week, limitMs }: { week: ReturnType<typeof weekWorkedMs>; limitMs: number }) {
+  const { colors } = useTheme();
+  const over = week.workedMs - limitMs;
+  const pct = limitMs > 0 ? Math.min(1, week.workedMs / limitMs) : 0;
   return (
-    <Text variant="body" color={color} align="center" tabular style={styles.forecast} accessibilityLiveRegion="polite">
-      {text}
-    </Text>
+    <Card style={styles.weekCard}>
+      <View style={styles.cardHeader}>
+        <Text variant="micro" color="textMuted">
+          Esta semana · {formatDayRange(week.start, week.end)}
+        </Text>
+      </View>
+      <Text variant="headline" tabular>
+        {formatDuration(week.workedMs)} <Text variant="body" color="textMuted">de {formatDuration(limitMs)}</Text>
+      </Text>
+      <View style={[styles.weekTrack, { backgroundColor: colors.border }]}>
+        <View style={[styles.weekFill, { width: `${pct * 100}%`, backgroundColor: over > 0 ? colors.extra : colors.work }]} />
+      </View>
+      <Text variant="caption" color={over >= MINUTE ? 'extra' : 'textMuted'} tabular>
+        {over >= MINUTE
+          ? `${formatDuration(over)} acima do limite da semana: tende a ser hora extra`
+          : `Faltam ${formatDuration(-over)} para chegar ao limite da semana`}
+      </Text>
+    </Card>
+  );
+}
+
+function Total({ label, value, color }: { label: string; value: string; color: keyof ColorTokens }) {
+  return (
+    <View style={styles.total}>
+      <Text variant="headline" color={color} tabular numberOfLines={1} adjustsFontSizeToFit>
+        {value}
+      </Text>
+      <Text variant="caption" color="textMuted">
+        {label}
+      </Text>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  forecast: { marginTop: -spacing.sm },
-  hero: { alignItems: 'center', paddingVertical: spacing.md },
-  ringContent: { alignItems: 'center', gap: spacing.sm },
+  flex: { flex: 1 },
   iconButton: { width: minTouch, height: minTouch, alignItems: 'center', justifyContent: 'center' },
-  dayOffCard: { alignItems: 'center', gap: spacing.sm },
-  cardHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: spacing.sm },
-  totals: { marginTop: spacing.md },
-  gapSm: { gap: spacing.xs },
+  dayOffCard: { alignItems: 'center', gap: spacing.md, paddingVertical: spacing.xl },
   actions: { gap: spacing.sm },
+  secondaryRow: { flexDirection: 'row', gap: spacing.sm },
+  lastCard: { gap: spacing.sm },
+  lastRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  timelineCard: { gap: spacing.md },
+  cardHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', minHeight: 36 },
+  totals: { flexDirection: 'row', gap: spacing.sm },
+  total: { flex: 1, gap: 2 },
+  periodCard: { gap: spacing.md },
+  weekCard: { gap: spacing.sm },
+  weekTrack: { height: 8, borderRadius: radius.full, overflow: 'hidden' },
+  weekFill: { height: '100%', borderRadius: radius.full },
 });

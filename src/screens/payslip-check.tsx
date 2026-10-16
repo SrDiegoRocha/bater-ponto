@@ -2,16 +2,16 @@ import * as Haptics from 'expo-haptics';
 import { router } from 'expo-router';
 import { useSQLiteContext } from 'expo-sqlite';
 import { useState } from 'react';
-import { Alert, StyleSheet, TextInput, View } from 'react-native';
+import { Alert, StyleSheet, View } from 'react-native';
 
 import { Banner, Button, Card, ChoiceChips, Divider, Screen, Text } from '@/components/ui';
+import { MaskedInput } from '@/components/ui/masked-input';
 import { useCltBreakdown } from '@/hooks/use-clt-breakdown';
 import { useDbQuery } from '@/hooks/use-db-query';
 import { useSelectedPeriod } from '@/hooks/use-period-stats';
 import {
   comparePayslip,
   EMPTY_PAYSLIP,
-  formatHoursInput,
   parseHours,
   type CheckRow,
   type HoursFormat,
@@ -21,11 +21,11 @@ import {
 import { periodLabel, periodRangeLabel, type Period } from '@/domain/period';
 import { deletePayslip, getPayslip, savePayslip } from '@/db/payslip-repo';
 import { formatDuration, formatMoney } from '@/lib/format';
-import { parseMoney } from '@/lib/money';
+import { centsToMoneyMask, maskHours, maskMoney, moneyMaskToCents, msToHoursMask } from '@/lib/masks';
 import { bumpData } from '@/stores/data-store';
 import { useSettings } from '@/stores/settings-store';
 import { showToast } from '@/stores/ui-store';
-import { fonts, radius, spacing, useTheme } from '@/theme';
+import { spacing } from '@/theme';
 
 // Conferência do holerite (CLT): o que a empresa pagou × o que o app calculou pelas batidas anotadas.
 
@@ -39,21 +39,16 @@ type Fields = {
   dsrValue: string;
 };
 
-const moneyText = (cents: number | null) => (cents === null ? '' : (cents / 100).toFixed(2).replace('.', ','));
-const parseCents = (text: string) => {
-  const reais = text.trim() ? parseMoney(text) : null;
-  return reais === null ? null : Math.round(reais * 100);
-};
 
 function toFields(v: PayslipValues): Fields {
   return {
-    extraHours: formatHoursInput(v.extraMs, v.hoursFormat),
-    extraValue: moneyText(v.extraCents),
-    extraDoubleHours: formatHoursInput(v.extraDoubleMs, v.hoursFormat),
-    extraDoubleValue: moneyText(v.extraDoubleCents),
-    nightHours: formatHoursInput(v.nightMs, v.hoursFormat),
-    nightValue: moneyText(v.nightCents),
-    dsrValue: moneyText(v.dsrCents),
+    extraHours: msToHoursMask(v.extraMs, v.hoursFormat),
+    extraValue: centsToMoneyMask(v.extraCents),
+    extraDoubleHours: msToHoursMask(v.extraDoubleMs, v.hoursFormat),
+    extraDoubleValue: centsToMoneyMask(v.extraDoubleCents),
+    nightHours: msToHoursMask(v.nightMs, v.hoursFormat),
+    nightValue: centsToMoneyMask(v.nightCents),
+    dsrValue: centsToMoneyMask(v.dsrCents),
   };
 }
 
@@ -61,12 +56,12 @@ function toValues(f: Fields, hoursFormat: HoursFormat): PayslipValues {
   return {
     hoursFormat,
     extraMs: parseHours(f.extraHours, hoursFormat),
-    extraCents: parseCents(f.extraValue),
+    extraCents: moneyMaskToCents(f.extraValue),
     extraDoubleMs: parseHours(f.extraDoubleHours, hoursFormat),
-    extraDoubleCents: parseCents(f.extraDoubleValue),
+    extraDoubleCents: moneyMaskToCents(f.extraDoubleValue),
     nightMs: parseHours(f.nightHours, hoursFormat),
-    nightCents: parseCents(f.nightValue),
-    dsrCents: parseCents(f.dsrValue),
+    nightCents: moneyMaskToCents(f.nightValue),
+    dsrCents: moneyMaskToCents(f.dsrValue),
   };
 }
 
@@ -86,7 +81,7 @@ function PayslipForm({ period, saved }: { period: Period; saved: Payslip | null 
   const [format, setFormat] = useState<HoursFormat>(saved?.hoursFormat ?? 'decimal');
   const [fields, setFields] = useState<Fields>(() => toFields(saved ?? EMPTY_PAYSLIP));
 
-  const set = (key: keyof Fields) => (text: string) => setFields((f) => ({ ...f, [key]: text }));
+  const set = (key: keyof Fields) => (masked: string) => setFields((f) => ({ ...f, [key]: masked }));
   const values = toValues(fields, format);
   const hasRate = settings.hourlyRate > 0;
   // Sem valor da hora o app não sabe quanto em R$ deveria ser: confere só as horas
@@ -150,6 +145,9 @@ function PayslipForm({ period, saved }: { period: Period; saved: Payslip | null 
           value={format}
           onChange={changeFormat}
         />
+        <Text variant="caption" color="textMuted">
+          Digite só os números: a vírgula, os dois-pontos e o ponto do valor entram sozinhos (1250 vira {format === 'decimal' ? '12,50' : '12:50'}).
+        </Text>
       </Card>
 
       <Card style={styles.gap}>
@@ -263,55 +261,40 @@ function HoursInput({
 }: {
   label: string;
   value: string;
-  onChange: (text: string) => void;
+  onChange: (masked: string) => void;
   format: HoursFormat;
   invalid: boolean;
 }) {
-  return <Field label={label} value={value} onChange={onChange} placeholder={format === 'decimal' ? '0,00' : '0:00'} invalid={invalid} />;
+  return (
+    <Field label={label}>
+      <MaskedInput
+        label={label}
+        value={value}
+        onChangeText={onChange}
+        mask={(t) => maskHours(t, format)}
+        placeholder={format === 'decimal' ? '0,00' : '0:00'}
+        suffix="h"
+        invalid={invalid}
+      />
+    </Field>
+  );
 }
 
-function MoneyField({ label, value, onChange }: { label: string; value: string; onChange: (text: string) => void }) {
-  return <Field label={label} value={value} onChange={onChange} placeholder="0,00" prefix="R$" invalid={value.trim() !== '' && parseMoney(value) === null} />;
+function MoneyField({ label, value, onChange }: { label: string; value: string; onChange: (masked: string) => void }) {
+  return (
+    <Field label={label}>
+      <MaskedInput label={label} value={value} onChangeText={onChange} mask={maskMoney} placeholder="0,00" prefix="R$" />
+    </Field>
+  );
 }
 
-function Field({
-  label,
-  value,
-  onChange,
-  placeholder,
-  prefix,
-  invalid,
-}: {
-  label: string;
-  value: string;
-  onChange: (text: string) => void;
-  placeholder: string;
-  prefix?: string;
-  invalid: boolean;
-}) {
-  const { colors } = useTheme();
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <View style={styles.field}>
       <Text variant="caption" color="textMuted">
         {label}
       </Text>
-      <View style={[styles.box, { borderColor: invalid ? colors.danger : colors.border, backgroundColor: colors.surfaceRaised }]}>
-        {prefix ? (
-          <Text variant="body" color="textMuted">
-            {prefix}
-          </Text>
-        ) : null}
-        <TextInput
-          accessibilityLabel={label}
-          value={value}
-          onChangeText={onChange}
-          keyboardType="decimal-pad"
-          placeholder={placeholder}
-          placeholderTextColor={colors.textMuted}
-          selectionColor={colors.primary}
-          style={[styles.input, { color: colors.text }]}
-        />
-      </View>
+      {children}
     </View>
   );
 }
@@ -322,15 +305,5 @@ const styles = StyleSheet.create({
   gapXs: { gap: spacing.xs },
   fieldRow: { flexDirection: 'row', gap: spacing.md },
   field: { flex: 1, gap: spacing.xs },
-  box: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.xs,
-    paddingHorizontal: spacing.md,
-    borderRadius: radius.md,
-    borderWidth: StyleSheet.hairlineWidth,
-    minHeight: 48,
-  },
-  input: { flex: 1, fontFamily: fonts.semibold, fontSize: 18, fontVariant: ['tabular-nums'], paddingVertical: spacing.sm },
   resultRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
 });

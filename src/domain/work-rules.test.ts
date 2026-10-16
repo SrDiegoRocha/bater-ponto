@@ -1,5 +1,5 @@
 import { HOUR, MINUTE } from './time';
-import { buildDayHours, classifyHours, CLT_RULES, describeRules, sumOvertime, weekStart, type DayHours } from './work-rules';
+import { buildDayHours, classifyHours, CLT_RULES, describeRules, sumOvertime, weekStart, weekWorkedMs, type DayHours } from './work-rules';
 import type { WorkdayInput } from './stats';
 
 const t = (iso: string) => new Date(iso).getTime();
@@ -114,4 +114,19 @@ it('buildDayHours soma jornadas por data e marca feriado, folga e domingo', () =
 it('describeRules', () => {
   expect(describeRules(CLT_RULES)).toBe('8h por dia · 44h por semana');
   expect(describeRules({ ...CLT_RULES, dailyLimitMinutes: 7 * 60 + 20 })).toBe('7h20 por dia · 44h por semana');
+});
+
+describe('weekWorkedMs', () => {
+  it('soma a semana de seg a dom, com dias antes do período e sem feriados', () => {
+    const classified = new Map([
+      ['2026-10-14', { normalMs: 8 * HOUR, extraMs: HOUR, extraDoubleMs: 0 }],
+      ['2026-10-15', { normalMs: 0, extraMs: 0, extraDoubleMs: 5 * HOUR }],
+      ['2026-10-20', { normalMs: 8 * HOUR, extraMs: 0, extraDoubleMs: 0 }], // outra semana
+    ]);
+    const lead = [
+      { date: '2026-10-12', workedMs: 8 * HOUR, premium: false },
+      { date: '2026-10-13', workedMs: 4 * HOUR, premium: true },
+    ];
+    expect(weekWorkedMs('2026-10-16', classified, lead)).toEqual({ start: '2026-10-12', end: '2026-10-18', workedMs: 17 * HOUR });
+  });
 });

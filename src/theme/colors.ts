@@ -21,6 +21,8 @@ export type ColorTokens = {
   money: string;
   danger: string;
   night: string;
+  /** Hora extra: a mesma cor em barras, gráficos e etiquetas */
+  extra: string;
 };
 
 export const darkColors: ColorTokens = {
@@ -41,6 +43,7 @@ export const darkColors: ColorTokens = {
   money: brand.gold,
   danger: '#FF6B6B',
   night: '#5B8DEF',
+  extra: '#F062C0',
 };
 
 export const lightColors: ColorTokens = {
@@ -61,6 +64,7 @@ export const lightColors: ColorTokens = {
   money: brand.goldDeep,
   danger: '#C62F2F',
   night: '#2F5DBF',
+  extra: '#A8287C',
 };
 
 /** Tokens que viram texto/ícone sobre `surface` e `bg` e por isso precisam de contraste ≥ 4,5:1. */
@@ -77,4 +81,5 @@ export const textTokens = [
   'money',
   'danger',
   'night',
+  'extra',
 ] as const satisfies readonly (keyof ColorTokens)[];

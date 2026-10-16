@@ -1,6 +1,6 @@
 import { StyleSheet, View } from 'react-native';
 
-import { minTouch, spacing, useTheme, type ColorTokens } from '@/theme';
+import { minTouch, radius, spacing, useTheme, withAlpha, type ColorTokens } from '@/theme';
 
 import { Icon, type IconName } from './icon';
 import { PressableScale } from './pressable-scale';
@@ -22,6 +22,17 @@ export function SectionHeader({ title, action }: { title: string; action?: React
   );
 }
 
+/** Ícone de linha de lista: sempre no mesmo quadrado tingido, para as listas ficarem alinhadas */
+export function IconBadge({ name, color = 'textMuted' }: { name: IconName; color?: keyof ColorTokens }) {
+  const { colors } = useTheme();
+  const tint = color === 'textMuted' || color === 'text' ? colors.border : withAlpha(colors[color], 0.14);
+  return (
+    <View style={[styles.badge, { backgroundColor: tint }]}>
+      <Icon name={name} size={20} color={color === 'textMuted' ? 'text' : color} />
+    </View>
+  );
+}
+
 export type ListRowProps = {
   title: string;
   subtitle?: string;
@@ -36,7 +47,7 @@ export function ListRow({ title, subtitle, icon, iconColor = 'textMuted', value,
   const { colors } = useTheme();
   const content = (
     <View style={styles.row}>
-      {icon && <Icon name={icon} color={iconColor} />}
+      {icon && <IconBadge name={icon} color={iconColor} />}
       <View style={styles.rowText}>
         <Text variant="body">{title}</Text>
         {subtitle ? (
@@ -82,4 +93,5 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.sm,
   },
   rowText: { flex: 1, gap: 2 },
+  badge: { width: 36, height: 36, borderRadius: radius.sm + 2, alignItems: 'center', justifyContent: 'center' },
 });

@@ -3,16 +3,21 @@ import { useSQLiteContext } from 'expo-sqlite';
 import { useState } from 'react';
 import { Alert, StyleSheet, TextInput, View } from 'react-native';
 
-import { Banner, Button, Card, EmptyState, Screen, StatCard, StatGrid, StatusPill, Text } from '@/components/ui';
+import { Banner, Button, Card, EmptyState, Screen, StatCard, StatGrid, StatusPill, SwitchRow, Text } from '@/components/ui';
 import { Timeline } from '@/components/workday/timeline';
 import { useDbQuery } from '@/hooks/use-db-query';
 import { useNow } from '@/hooks/use-now';
+import { checkBreak, describeBreakIssue } from '@/domain/break-rules';
+import { holidaysInRange } from '@/domain/holidays';
 import { nightMs } from '@/domain/night-hours';
 import { MIN_REST_MS } from '@/domain/validation';
 import { summarizeWorkday } from '@/domain/workday';
+import { listHolidayOverrides } from '@/db/holiday-repo';
 import { getNeighborBounds, getWorkday, setWorkdayNote } from '@/db/workday-repo';
 import { formatDuration, formatLongDay } from '@/lib/format';
+import { setHolidayOnDates } from '@/services/holiday-service';
 import { endWorkdayAtLastPunch, removeWorkday } from '@/services/punch-service';
+import { useSettings } from '@/stores/settings-store';
 import { bumpData } from '@/stores/data-store';
 import { showToast } from '@/stores/ui-store';
 import { radius, spacing, useTheme } from '@/theme';
@@ -23,6 +28,7 @@ export function WorkdayDetail({ workdayId }: { workdayId: string }) {
   const db = useSQLiteContext();
   const { colors } = useTheme();
   const now = useNow();
+  const { optionalHolidays, splitBreak } = useSettings();
   const { data, loading } = useDbQuery(async (d) => {
     const workday = await getWorkday(d, workdayId);
     if (!workday) return null;
@@ -31,6 +37,7 @@ export function WorkdayDetail({ workdayId }: { workdayId: string }) {
     const neighbors = first != null ? await getNeighborBounds(d, first, workdayId) : null;
     return {
       workday,
+      overrides: await listHolidayOverrides(d),
       restBefore: neighbors?.previousWorkdayEnd != null && first != null ? first - neighbors.previousWorkdayEnd : null,
       restAfter: neighbors?.nextWorkdayStart != null && last != null ? neighbors.nextWorkdayStart - last : null,
     };
@@ -48,9 +55,17 @@ export function WorkdayDetail({ workdayId }: { workdayId: string }) {
   }
 
   const { workday, restBefore, restAfter } = data;
+  const holiday = holidaysInRange(workday.refDate, workday.refDate, data.overrides, { includeOptional: optionalHolidays }).get(workday.refDate);
   const summary = summarizeWorkday(workday.punches, now);
+  // Só confere o intervalo de jornada encerrada e coerente
+  const breakIssue = workday.status === 'closed' && summary.isConsistent ? checkBreak(summary, { splitBreak }) : null;
   const night = summary.segments.reduce((sum, s) => sum + nightMs(s), 0);
   const last = workday.punches.at(-1);
+
+  async function toggleHoliday(on: boolean) {
+    const undo = await setHolidayOnDates(db, [workday.refDate], on, { includeOptional: optionalHolidays });
+    showToast(on ? 'Dia marcado como feriado' : 'Feriado removido', { actions: [{ label: 'Desfazer', onPress: () => undo() }] });
+  }
 
   async function saveNote() {
     if (note === null || note === (workday.note ?? '')) return;
@@ -111,6 +126,10 @@ export function WorkdayDetail({ workdayId }: { workdayId: string }) {
         />
       ) : null}
 
+      {breakIssue ? (
+        <Banner tone="warning" icon="coffee" title="Intervalo fora da regra" description={describeBreakIssue(breakIssue, formatDuration)} />
+      ) : null}
+
       <StatGrid>
         <StatCard label="Trabalhado" value={formatDuration(summary.workedMs)} icon="work" color="work" />
         <StatCard label="Intervalo" value={formatDuration(summary.breakMs)} icon="pause" color="break" />
@@ -122,8 +141,20 @@ export function WorkdayDetail({ workdayId }: { workdayId: string }) {
         <StatCard label="Noturno" value={formatDuration(night)} icon="dark_mode" color="night" />
       </StatGrid>
 
+      <Card style={styles.holidayCard}>
+        <SwitchRow
+          title={holiday ? `Feriado · ${holiday.name}` : 'Feriado neste dia'}
+          subtitle="Trabalho em feriado conta como extra 100%. Marque também os municipais e estaduais."
+          value={!!holiday}
+          onValueChange={toggleHoliday}
+        />
+      </Card>
+
       <Card>
-        <Timeline punches={workday.punches} now={now} onPressPunch={(p) => router.push(`/batida/${p.id}`)} />
+        <Timeline punches={workday.punches} now={now} editable live={workday.status === 'open'} />
+        <Text variant="caption" color="textMuted" align="center" style={styles.hint}>
+          Toque numa batida para ajustar · segure para excluir
+        </Text>
         <View style={styles.actions}>
           <Button
             label="Adicionar turno ou batida"
@@ -204,6 +235,8 @@ function RestLine({ label, ms }: { label: string; ms: number }) {
 
 const styles = StyleSheet.create({
   actions: { marginTop: spacing.md, gap: spacing.sm },
+  hint: { marginTop: spacing.sm },
+  holidayCard: { paddingVertical: spacing.sm },
   gap: { gap: spacing.sm },
   input: {
     minHeight: 72,

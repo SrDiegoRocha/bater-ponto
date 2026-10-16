@@ -14,6 +14,8 @@ export type Settings = {
   hourlyRate: number;
   /** Regras da jornada (limites da CLT ou do contrato); substituem a antiga meta diária */
   workRules: WorkRules;
+  /** Intervalo reduzido/fracionado por convenção (CLT art. 71 §5º: motoristas, cobradores…) */
+  splitBreak: boolean;
   minRestMinutes: number;
   maxWorkdayMinutes: number;
   salaryMode: 'simple' | 'clt';
@@ -45,6 +47,7 @@ export const DEFAULT_SETTINGS: Settings = {
   periodStartDay: 21,
   hourlyRate: 0,
   workRules: CLT_RULES,
+  splitBreak: false,
   minRestMinutes: 660,
   maxWorkdayMinutes: 1440,
   salaryMode: 'simple',
@@ -69,13 +72,19 @@ export const DEFAULT_SETTINGS: Settings = {
 /** Chaves que pertencem ao aparelho, não aos dados (não entram no backup) */
 export const DEVICE_ONLY_SETTINGS: readonly (keyof Settings)[] = ['biometricLock', 'lockAfterSec', 'autoBackup', 'lastAutoBackupAt', 'reminders'];
 
+const isPlainObject = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
+
 export async function loadSettings(db: SQLiteDatabase): Promise<Settings> {
   const rows = await db.getAllAsync<{ key: string; value: string }>('SELECT key, value FROM setting');
   const settings: Settings = { ...DEFAULT_SETTINGS };
   for (const { key, value } of rows) {
     if (!(key in DEFAULT_SETTINGS)) continue;
     try {
-      (settings as Record<string, unknown>)[key] = JSON.parse(value);
+      const parsed: unknown = JSON.parse(value);
+      const fallback = (DEFAULT_SETTINGS as Record<string, unknown>)[key];
+      // Objetos (lembretes, regras) mesclam com o padrão: campo novo de uma versão nova já nasce válido
+      (settings as Record<string, unknown>)[key] =
+        isPlainObject(fallback) && isPlainObject(parsed) ? { ...fallback, ...parsed } : parsed;
     } catch {
       // valor corrompido: mantém o padrão
     }

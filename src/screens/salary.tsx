@@ -5,7 +5,7 @@ import { StyleSheet, View } from 'react-native';
 
 import { PeriodSwipe } from '@/components/period/period-swipe';
 import { PeriodSwitcher } from '@/components/period/period-switcher';
-import { Button, Card, ChoiceChips, Divider, Icon, PressableScale, SliderRow, SwitchRow, Text } from '@/components/ui';
+import { Button, Card, ChoiceChips, Divider, Icon, PressableScale, SectionHeader, SliderRow, SwitchRow, Text } from '@/components/ui';
 import { Screen } from '@/components/ui/screen';
 import { MoneyInput } from '@/components/ui/money-input';
 import { cltConfigFromSettings, useCltBreakdown } from '@/hooks/use-clt-breakdown';
@@ -22,12 +22,13 @@ import { HOUR } from '@/domain/time';
 import { getPayslip } from '@/db/payslip-repo';
 import { formatClock, formatDuration, formatMoney } from '@/lib/format';
 import { useSettings, useSettingsStore } from '@/stores/settings-store';
-import { spacing } from '@/theme';
+import { radius, spacing, useTheme, withAlpha, type ColorTokens } from '@/theme';
 
 // Calculadora de salário (§3.6 / §5.6): modo simples e modo CLT, com simulador "E se?".
 
 export function Salary() {
   const db = useSQLiteContext();
+  const { colors } = useTheme();
   const settings = useSettings();
   const update = useSettingsStore((s) => s.update);
   const period = useSelectedPeriod();
@@ -66,33 +67,27 @@ export function Salary() {
       </PeriodSwipe>
 
       <Card style={styles.gap}>
-        <Text variant="micro" color="textMuted">
-          Valor da sua hora
-        </Text>
-        <MoneyInput label="Valor da hora" value={settings.hourlyRate} onCommit={(v) => update(db, { hourlyRate: v })} />
-        <ChoiceChips
-          options={[
-            { value: 'simple', label: 'Simples', icon: 'calculate' },
-            { value: 'clt', label: 'CLT', icon: 'gavel' },
-          ]}
-          value={settings.salaryMode}
-          onChange={(v) => update(db, { salaryMode: v })}
-        />
-        <Text variant="caption" color="textMuted">
-          {clt
-            ? 'Horas extras, feriados, adicional noturno, DSR e descontos de INSS e IRRF.'
-            : 'Horas trabalhadas × valor da hora. Intervalos não contam.'}
-        </Text>
-      </Card>
-
-      <Card style={styles.gap}>
         <View style={styles.totalHeader}>
           <Text variant="micro" color="textMuted">
-            {breakdown ? 'Líquido estimado' : 'Total bruto'}
-            {simulate ? ' · simulação' : ''}
+            {breakdown ? 'Líquido estimado' : 'Bruto estimado'}
           </Text>
+          {simulate ? (
+            <View style={[styles.simTag, { backgroundColor: withAlpha(colors.primary, 0.14) }]}>
+              <Text variant="micro" color="primary">
+                Simulação
+              </Text>
+            </View>
+          ) : null}
         </View>
-        <AnimatedMoney cents={total} />
+        {settings.hourlyRate > 0 ? (
+          <AnimatedMoney cents={total} />
+        ) : (
+          <Text variant="body" color="textMuted">
+            Informe o valor da sua hora abaixo para calcular.
+          </Text>
+        )}
+
+        {breakdown && settings.hourlyRate > 0 ? <GrossBar b={breakdown} /> : null}
 
         <Divider />
         {breakdown ? (
@@ -103,15 +98,36 @@ export function Salary() {
             <Row label="Valor da hora" value={rate > 0 ? formatMoney(toCents(rate)) : '—'} />
           </>
         )}
-        {settings.hourlyRate <= 0 ? (
-          <Text variant="caption" color="textMuted">
-            Informe o valor da sua hora acima para calcular.
-          </Text>
-        ) : null}
       </Card>
 
+      <SectionHeader title="Conferir com a empresa" />
       <TimesheetCard period={period} />
       <PayslipCard period={period} />
+
+      <SectionHeader title="Seu salário" />
+      <Card style={styles.gap}>
+        <Text variant="caption" color="textMuted">
+          Valor da sua hora
+        </Text>
+        <MoneyInput label="Valor da hora" value={settings.hourlyRate} onCommit={(v) => update(db, { hourlyRate: v })} />
+        <Text variant="caption" color="textMuted">
+          Como calcular
+        </Text>
+        <ChoiceChips
+          options={[
+            { value: 'simple', label: 'Simples', icon: 'calculate' },
+            { value: 'clt', label: 'CLT completo', icon: 'gavel' },
+          ]}
+          value={settings.salaryMode}
+          onChange={(v) => update(db, { salaryMode: v })}
+        />
+        <Text variant="caption" color="textMuted">
+          {clt
+            ? 'Horas extras, feriados, adicional noturno, DSR e descontos de INSS e IRRF.'
+            : 'Horas trabalhadas × valor da hora. Intervalos não contam.'}
+        </Text>
+        {clt ? <Button label="Ajustar regras da CLT" icon="tune" variant="ghost" size="sm" onPress={() => router.push('/ajustes/salario')} /> : null}
+      </Card>
 
       <Card style={styles.gap}>
         <SwitchRow
@@ -144,7 +160,6 @@ export function Salary() {
         ) : null}
       </Card>
 
-      {clt ? <Button label="Ajustar regras da CLT" icon="tune" variant="ghost" onPress={() => router.push('/ajustes/salario')} /> : null}
       <Text variant="caption" color="textMuted" align="center">
         Estimativa. Confira com seu holerite.{clt ? `\nDescontos pelas tabelas de INSS e IRRF de ${TAX_YEAR}.` : ''}
       </Text>
@@ -237,27 +252,47 @@ function AnimatedMoney({ cents }: { cents: number }) {
   );
 }
 
+/** De onde vem o bruto: normais, extras, noturno e DSR, na mesma cor de cada linha do recibo */
+function GrossBar({ b }: { b: CltBreakdown }) {
+  const { colors } = useTheme();
+  const all: { cents: number; color: keyof ColorTokens }[] = [
+    { cents: b.normalPay, color: 'work' },
+    { cents: b.extraPay + b.extraDoublePay, color: 'extra' },
+    { cents: b.nightBonusPay + b.nightAdditionalPay, color: 'night' },
+    { cents: b.dsrPay, color: 'money' },
+  ];
+  const parts = all.filter((p) => p.cents > 0);
+  if (b.gross <= 0) return null;
+  return (
+    <View style={styles.grossBar} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
+      {parts.map((p) => (
+        <View key={p.color} style={{ flex: p.cents, backgroundColor: colors[p.color] }} />
+      ))}
+    </View>
+  );
+}
+
 function CltReceipt({ b, rate }: { b: CltBreakdown; rate: number }) {
   return (
     <>
-      <Row label={`Horas normais (${formatDuration(b.normalMs)})`} value={formatMoney(b.normalPay)} />
-      {b.extraMs > 0 ? <Row label={`Extras comuns (${formatDuration(b.extraMs)})`} value={formatMoney(b.extraPay)} /> : null}
+      <Row dot="work" label={`Horas normais (${formatDuration(b.normalMs)})`} value={formatMoney(b.normalPay)} />
+      {b.extraMs > 0 ? <Row dot="extra" label={`Extras comuns (${formatDuration(b.extraMs)})`} value={formatMoney(b.extraPay)} /> : null}
       {b.extraDoubleMs > 0 ? (
-        <Row label={`Extras em feriado/folga (${formatDuration(b.extraDoubleMs)})`} value={formatMoney(b.extraDoublePay)} />
+        <Row dot="extra" label={`Extras em feriado/folga (${formatDuration(b.extraDoubleMs)})`} value={formatMoney(b.extraDoublePay)} />
       ) : null}
-      {b.nightBonusMs > 0 ? <Row label="Hora noturna reduzida" value={formatMoney(b.nightBonusPay)} /> : null}
+      {b.nightBonusMs > 0 ? <Row dot="night" label="Hora noturna reduzida" value={formatMoney(b.nightBonusPay)} /> : null}
       {b.nightAdditionalPay > 0 ? (
-        <Row label={`Adicional noturno (${formatDuration(b.nightMs)})`} value={formatMoney(b.nightAdditionalPay)} />
+        <Row dot="night" label={`Adicional noturno (${formatDuration(b.nightMs)})`} value={formatMoney(b.nightAdditionalPay)} />
       ) : null}
       {b.dsrPay > 0 ? (
-        <Row label={`DSR sobre extras (${b.restDays}/${b.businessDays} dias)`} value={formatMoney(b.dsrPay)} />
+        <Row dot="money" label={`DSR sobre extras (${b.restDays}/${b.businessDays} dias)`} value={formatMoney(b.dsrPay)} />
       ) : null}
       <Divider />
       <Row label="Bruto" value={formatMoney(b.gross)} strong />
-      <Row label="INSS" value={`−${formatMoney(b.inss)}`} />
-      <Row label="IRRF" value={b.irrf > 0 ? `−${formatMoney(b.irrf)}` : 'isento'} />
+      <Row label="INSS" value={`−${formatMoney(b.inss)}`} valueColor="danger" />
+      <Row label="IRRF" value={b.irrf > 0 ? `−${formatMoney(b.irrf)}` : 'isento'} valueColor={b.irrf > 0 ? 'danger' : 'textMuted'} />
       <Divider />
-      <Row label="Líquido" value={formatMoney(b.net)} strong />
+      <Row label="Líquido" value={formatMoney(b.net)} strong valueColor="money" />
       <Text variant="caption" color="textMuted">
         Valor da hora usado: {formatMoney(toCents(rate))}
       </Text>
@@ -265,13 +300,27 @@ function CltReceipt({ b, rate }: { b: CltBreakdown; rate: number }) {
   );
 }
 
-function Row({ label, value, strong }: { label: string; value: string; strong?: boolean }) {
+function Row({
+  label,
+  value,
+  strong,
+  dot,
+  valueColor = 'text',
+}: {
+  label: string;
+  value: string;
+  strong?: boolean;
+  dot?: keyof ColorTokens;
+  valueColor?: keyof ColorTokens;
+}) {
+  const { colors } = useTheme();
   return (
     <View style={styles.row}>
+      {dot ? <View style={[styles.dot, { backgroundColor: colors[dot] }]} /> : null}
       <Text variant={strong ? 'headline' : 'body'} color={strong ? 'text' : 'textMuted'} style={styles.rowLabel}>
         {label}
       </Text>
-      <Text variant={strong ? 'headline' : 'body'} tabular>
+      <Text variant={strong ? 'headline' : 'body'} color={valueColor} tabular>
         {value}
       </Text>
     </View>
@@ -280,8 +329,11 @@ function Row({ label, value, strong }: { label: string; value: string; strong?: 
 
 const styles = StyleSheet.create({
   gap: { gap: spacing.md },
-  row: { flexDirection: 'row', justifyContent: 'space-between', gap: spacing.md },
+  row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing.sm },
+  dot: { width: 8, height: 8, borderRadius: 4 },
+  grossBar: { flexDirection: 'row', height: 8, borderRadius: radius.full, overflow: 'hidden', gap: 2 },
+  simTag: { paddingHorizontal: spacing.sm, paddingVertical: 2, borderRadius: radius.full },
   rowLabel: { flex: 1 },
-  totalHeader: { flexDirection: 'row', justifyContent: 'space-between' },
+  totalHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   payslip: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
 });

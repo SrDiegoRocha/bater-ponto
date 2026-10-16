@@ -1,7 +1,8 @@
 import { router } from 'expo-router';
 import { Share, StyleSheet, View } from 'react-native';
 
-import { BarChart, type Bar } from '@/components/charts/bar-chart';
+import { DailyHoursChart, WeeklyHoursChart, type DayBar, type WeekBar } from '@/components/charts/bar-chart';
+import { dayOffColor } from '@/components/calendar/calendar-grid';
 import { PeriodSwipe } from '@/components/period/period-swipe';
 import { PeriodSwitcher } from '@/components/period/period-switcher';
 import { computeCltPay } from '@/domain/clt';
@@ -10,10 +11,11 @@ import { Card, Divider, EmptyState, Icon, ListRow, Screen, SectionHeader, StatCa
 import { PressableScale } from '@/components/ui/pressable-scale';
 import { cltConfigFromSettings } from '@/hooks/use-clt-breakdown';
 import { usePeriodStats, useSelectedPeriod } from '@/hooks/use-period-stats';
-import { periodDates, shiftPeriod } from '@/domain/period';
+import { periodDates, shiftPeriod, type Period } from '@/domain/period';
 import { simpleGrossCents } from '@/domain/salary';
 import type { PeriodStats } from '@/domain/stats';
-import { fromDateKey, HOUR, MINUTE } from '@/domain/time';
+import { addDaysToKey, MINUTE, toDateKey } from '@/domain/time';
+import { weekStart } from '@/domain/work-rules';
 import { formatDuration, formatMoney, formatShortDate } from '@/lib/format';
 import { useSettings } from '@/stores/settings-store';
 import { minTouch, spacing } from '@/theme';
@@ -21,7 +23,6 @@ import { minTouch, spacing } from '@/theme';
 // Resumo do período (§4 / §5.5): cards com count-up, comparação com o período anterior, gráficos e detalhes.
 
 const pad = (n: number) => String(n).padStart(2, '0');
-const WEEKDAYS = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
 
 /** Minutos desde 00:00 da data de referência → "08:30" ou "02:00 (+1)" */
 function formatClockMinutes(minutes: number | null): string {
@@ -35,11 +36,9 @@ function formatClockMinutes(minutes: number | null): string {
 function delta(current: number, previous: number | undefined, format: (n: number) => string): StatDelta | undefined {
   if (previous === undefined) return undefined;
   const diff = current - previous;
-  if (diff === 0) return { text: 'igual ao anterior', direction: 'flat' };
-  return { text: `${format(Math.abs(diff))} vs anterior`, direction: diff > 0 ? 'up' : 'down' };
+  if (diff === 0) return { text: 'igual', direction: 'flat' };
+  return { text: format(Math.abs(diff)), direction: diff > 0 ? 'up' : 'down' };
 }
-
-const hoursLabel = (v: number) => formatDuration(v * HOUR);
 
 export function Summary() {
   const settings = useSettings();
@@ -118,7 +117,7 @@ export function Summary() {
               numeric={stats.daysWorked}
               format={(n) => String(Math.round(n))}
               icon="event_available"
-              delta={delta(stats.daysWorked, prev?.daysWorked, (n) => `${n} ${n === 1 ? 'dia' : 'dias'}`)}
+              delta={delta(stats.daysWorked, prev?.daysWorked, (n) => String(n))}
             />
             <StatCard
               label="Folgas"
@@ -141,23 +140,23 @@ export function Summary() {
               numeric={stats.extraMs + stats.extraDoubleMs}
               format={formatDuration}
               icon="more_time"
-              color="break"
+              color="extra"
               delta={prev ? delta(stats.extraMs + stats.extraDoubleMs, prev.extraMs + prev.extraDoubleMs, formatDuration) : undefined}
               hint={
                 stats.extraDoubleMs > 0
-                  ? `${formatDuration(stats.extraDoubleMs)} em feriado/folga`
-                  : 'regras em Ajustes → Regras da jornada'
+                  ? `${formatDuration(stats.extraDoubleMs)} a 100%`
+                  : undefined
               }
             />
             <StatCard
-              label="Salário estimado"
+              label="Salário"
               {...(hourlyRate > 0
                 ? { numeric: money(stats.workedMs), format: formatMoney }
                 : { value: 'Definir' })}
               icon="payments"
               color="money"
               delta={hourlyRate > 0 && prev ? delta(money(stats.workedMs), money(prev.workedMs), formatMoney) : undefined}
-              hint={hourlyRate > 0 ? (settings.salaryMode === 'clt' ? 'horas × valor · CLT na aba Salário' : 'bruto · toque para detalhes') : 'informe o valor da hora'}
+              hint={hourlyRate > 0 ? 'bruto estimado' : 'informe o valor da hora'}
               onPress={() => router.navigate('/salario')}
             />
           </StatGrid>
@@ -169,71 +168,65 @@ export function Summary() {
             {stats.daysWorked === 0 ? (
               <EmptyState illustration="period" title="Sem horas neste período" />
             ) : (
-              <BarChart
-                bars={dailyBars(stats, periodDates(period))}
-                reference={{ value: dailyLimitMs / HOUR, label: `limite ${formatDuration(dailyLimitMs)}` }}
-                formatValue={hoursLabel}
-                labelEvery={5}
-                accessibilityLabel={`Horas trabalhadas por dia no período. Total ${formatDuration(stats.workedMs)}.`}
-              />
+              <DailyHoursChart days={dailyBars(stats, periodDates(period))} limitMs={dailyLimitMs} today={toDateKey(now)} />
             )}
           </Card>
 
           {stats.daysWorked > 0 ? (
             <>
-              <SectionHeader title="Por dia da semana" />
+              <SectionHeader title="Por semana" />
               <Card>
-                <BarChart
-                  bars={weekdayBars(stats)}
-                  formatValue={hoursLabel}
-                  height={120}
-                  accessibilityLabel="Total de horas trabalhadas por dia da semana"
-                />
+                <WeeklyHoursChart weeks={weeklyBars(stats, period)} limitMs={workRules.weeklyLimitMinutes * MINUTE} />
               </Card>
             </>
           ) : null}
 
           <SectionHeader title="Detalhes" />
           <Card style={styles.list}>
-            <ListRow title="Média por dia trabalhado" value={formatDuration(stats.avgWorkedPerDayMs)} />
-            <Divider />
-            <ListRow title="Média de intervalo por dia" value={formatDuration(stats.avgBreakPerDayMs)} />
-            <Divider />
+            <ListRow title="Média por dia trabalhado" icon="avg_pace" iconColor="work" value={formatDuration(stats.avgWorkedPerDayMs)} />
+            <Divider inset={DIVIDER_INSET} />
+            <ListRow title="Média de intervalo por dia" icon="coffee" iconColor="break" value={formatDuration(stats.avgBreakPerDayMs)} />
+            <Divider inset={DIVIDER_INSET} />
             <ListRow
               title="Maior jornada"
+              icon="trending_up"
               subtitle={stats.longest ? formatShortDate(stats.longest.date) : undefined}
               value={stats.longest ? formatDuration(stats.longest.ms) : '—'}
             />
-            <Divider />
+            <Divider inset={DIVIDER_INSET} />
             <ListRow
               title="Menor jornada"
+              icon="trending_down"
               subtitle={stats.shortest ? formatShortDate(stats.shortest.date) : undefined}
               value={stats.shortest ? formatDuration(stats.shortest.ms) : '—'}
             />
-            <Divider />
-            <ListRow title="Início médio do dia" value={formatClockMinutes(stats.avgStartMinutes)} />
-            <Divider />
-            <ListRow title="Fim médio do dia" value={formatClockMinutes(stats.avgEndMinutes)} />
-            <Divider />
+            <Divider inset={DIVIDER_INSET} />
+            <ListRow title="Início médio do dia" icon="login" value={formatClockMinutes(stats.avgStartMinutes)} />
+            <Divider inset={DIVIDER_INSET} />
+            <ListRow title="Fim médio do dia" icon="logout" value={formatClockMinutes(stats.avgEndMinutes)} />
+            <Divider inset={DIVIDER_INSET} />
             <ListRow title="Horas noturnas (22h–5h)" icon="dark_mode" iconColor="night" value={formatDuration(stats.nightMs)} />
-            <Divider />
+            <Divider inset={DIVIDER_INSET} />
             <ListRow
               title="Menor interjornada"
-              subtitle={stats.shortRestCount > 0 ? `${stats.shortRestCount} abaixo de 11h` : undefined}
+              icon="bedtime"
+              iconColor={stats.shortRestCount > 0 ? 'break' : 'textMuted'}
+              subtitle={stats.shortRestCount > 0 ? `${stats.shortRestCount} abaixo de 11h` : 'mínimo da CLT: 11h'}
               value={stats.minRestMs !== null ? formatDuration(stats.minRestMs) : '—'}
             />
-            <Divider />
+            <Divider inset={DIVIDER_INSET} />
             <ListRow
               title="Feriados"
               icon="celebration"
               iconColor="holiday"
-              value={`${stats.holidaysWorked} trabalhados · ${stats.holidaysOff} de folga`}
+              subtitle={`${stats.holidaysWorked} trabalhados · ${stats.holidaysOff} de folga`}
+              value={String(stats.holidaysWorked + stats.holidaysOff)}
             />
-            <Divider />
-            <ListRow title="Dias sem registro" value={String(stats.daysWithoutRecord)} />
+            <Divider inset={DIVIDER_INSET} />
+            <ListRow title="Dias sem registro" icon="event_busy" value={String(stats.daysWithoutRecord)} />
             {stats.incompleteCount > 0 ? (
               <>
-                <Divider />
+                <Divider inset={DIVIDER_INSET} />
                 <ListRow
                   title="Jornadas incompletas"
                   subtitle="fora dos totais até serem corrigidas"
@@ -246,7 +239,7 @@ export function Summary() {
             ) : null}
           </Card>
           <Text variant="caption" color="textMuted" align="center">
-            Comparações usam o período anterior ({formatShortDate(previous.start)} a {formatShortDate(previous.end)}).
+            As setas comparam com o período anterior ({formatShortDate(previous.start)} a {formatShortDate(previous.end)}).
           </Text>
         </>
       ) : null}
@@ -254,27 +247,40 @@ export function Summary() {
   );
 }
 
-function dailyBars(stats: PeriodStats, dates: string[]): Bar[] {
+function dailyBars(stats: PeriodStats, dates: string[]): DayBar[] {
   return dates.map((date) => {
     const status = stats.days.get(date);
-    const worked = status?.type === 'worked' ? status.workedMs : 0;
+    const o = stats.overtime.get(date);
+    const marker =
+      status?.type === 'dayOff' ? dayOffColor[status.kind] : status?.type === 'holiday' ? ('holiday' as const) : undefined;
     return {
-      key: date,
-      label: String(Number(date.slice(8))),
-      value: worked / HOUR,
-      detail: formatShortDate(date),
+      date,
+      normalMs: o?.normalMs ?? 0,
+      extraMs: o ? o.extraMs + o.extraDoubleMs : 0,
+      marker,
+      incomplete: status?.type === 'worked' && status.incomplete,
     };
   });
 }
 
-function weekdayBars(stats: PeriodStats): Bar[] {
-  const totals = Array<number>(7).fill(0);
-  for (const [date, status] of stats.days) {
-    if (status.type === 'worked') totals[fromDateKey(date).getDay()] += status.workedMs;
+/** Semanas (seg–dom) que tocam o período; as das pontas podem estar cortadas */
+function weeklyBars(stats: PeriodStats, period: Period): WeekBar[] {
+  const weeks = new Map<string, WeekBar>();
+  for (const date of periodDates(period)) {
+    const start = weekStart(date);
+    const end = addDaysToKey(start, 6);
+    const week = weeks.get(start) ?? { start, end, workedMs: 0, extraMs: 0, partial: start < period.start || end > period.end };
+    const o = stats.overtime.get(date);
+    if (o) {
+      week.workedMs += o.normalMs + o.extraMs + o.extraDoubleMs;
+      week.extraMs += o.extraMs + o.extraDoubleMs;
+    }
+    weeks.set(start, week);
   }
-  // Semana começando na segunda
-  return [1, 2, 3, 4, 5, 6, 0].map((d) => ({ key: String(d), label: WEEKDAYS[d], value: totals[d] / HOUR }));
+  return [...weeks.values()];
 }
+
+const DIVIDER_INSET = 48;
 
 const styles = StyleSheet.create({
   list: { paddingVertical: spacing.xs },

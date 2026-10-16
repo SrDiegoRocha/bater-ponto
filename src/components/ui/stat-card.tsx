@@ -30,7 +30,7 @@ export function StatCard({ label, value, numeric, format, hint, icon, color = 't
     <Card style={styles.card}>
       <View style={styles.header}>
         {icon && <Icon name={icon} size={20} color={color === 'text' ? 'textMuted' : color} />}
-        <Text variant="micro" color="textMuted" numberOfLines={1} style={styles.label}>
+        <Text variant="micro" color="textMuted" style={styles.label}>
           {label}
         </Text>
       </View>
@@ -48,13 +48,13 @@ export function StatCard({ label, value, numeric, format, hint, icon, color = 't
             size={20}
             color="textMuted"
           />
-          <Text variant="caption" color="textMuted" tabular numberOfLines={1}>
+          <Text variant="caption" color="textMuted" tabular style={styles.label}>
             {delta.text}
           </Text>
         </View>
       ) : null}
       {hint ? (
-        <Text variant="caption" color="textMuted" numberOfLines={2}>
+        <Text variant="caption" color="textMuted">
           {hint}
         </Text>
       ) : null}
@@ -93,7 +93,7 @@ const styles = StyleSheet.create({
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.md },
   cell: { flexBasis: '47%', flexGrow: 1 },
   card: { gap: spacing.xs, minHeight: 104 },
-  header: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
+  header: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.xs },
   label: { flex: 1 },
   delta: { flexDirection: 'row', alignItems: 'center', gap: 2 },
 });

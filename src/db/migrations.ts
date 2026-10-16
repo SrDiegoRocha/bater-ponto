@@ -95,6 +95,17 @@ const steps: ((db: SQLiteDatabase) => Promise<void>)[] = [
       );
     `);
   },
+
+  // v4 → v5: "feriado" deixa de ser folga e vira feriado próprio da data. Assim o dia continua
+  // aceitando jornada (feriado municipal em que se trabalhou conta como extra 100%).
+  async (db) => {
+    await db.execAsync(`
+      INSERT INTO holiday_override (id, kind, date, name, created_at)
+        SELECT lower(hex(randomblob(16))), 'custom', date, COALESCE(NULLIF(note, ''), 'Feriado local'), created_at
+        FROM day_off WHERE kind = 'feriado';
+      DELETE FROM day_off WHERE kind = 'feriado';
+    `);
+  },
 ];
 
 export const DATABASE_NAME = 'bater-ponto.db';

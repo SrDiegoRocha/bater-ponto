@@ -93,3 +93,16 @@ it('usuário novo: todos os dias menos domingo', () => {
 it('weekdaysFromDates', () => {
   expect(weekdaysFromDates(['2026-10-12', '2026-10-18', '2026-10-19'])).toEqual(new Set([1, 0]));
 });
+
+it('fim do intervalo: avisa quando o intervalo completa o tempo escolhido', () => {
+  const plan = planReminders({
+    ...base,
+    openPunches: [
+      { kind: 'in', at: t('2026-10-14T06:00:00') },
+      { kind: 'out', at: t('2026-10-14T09:30:00') },
+    ],
+    settings: { ...on, endOfDay: false, longBreak: false, breakEnd: true, breakEndMinutes: 60 },
+  });
+  expect(plan).toHaveLength(1);
+  expect(plan[0]).toMatchObject({ id: 'lembrete-fim-intervalo', at: t('2026-10-14T10:30:00') });
+});

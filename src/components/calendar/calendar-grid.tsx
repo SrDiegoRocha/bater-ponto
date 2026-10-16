@@ -4,8 +4,9 @@ import { Text } from '@/components/ui';
 import { PressableScale } from '@/components/ui/pressable-scale';
 import { periodDates, type Period } from '@/domain/period';
 import type { DayStatus } from '@/domain/stats';
-import { fromDateKey, HOUR } from '@/domain/time';
+import { fromDateKey, HOUR, MINUTE } from '@/domain/time';
 import type { DateKey, DayOffKind } from '@/domain/types';
+import type { DayOvertime } from '@/domain/work-rules';
 import { radius, spacing, useTheme, type ColorTokens } from '@/theme';
 
 // Calendário do período (não do mês civil), §5.3. Cada estado tem cor + marcação própria.
@@ -29,13 +30,15 @@ export const dayOffLabel: Record<DayOffKind, string> = {
 type Props = {
   period: Period;
   days: ReadonlyMap<DateKey, DayStatus>;
+  /** Dias com hora extra ganham a legenda na cor de extra */
+  overtime?: ReadonlyMap<DateKey, DayOvertime>;
   today: DateKey;
   selected: ReadonlySet<DateKey>;
   onPressDay: (date: DateKey) => void;
   onLongPressDay: (date: DateKey) => void;
 };
 
-export function CalendarGrid({ period, days, today, selected, onPressDay, onLongPressDay }: Props) {
+export function CalendarGrid({ period, days, overtime, today, selected, onPressDay, onLongPressDay }: Props) {
   const dates = periodDates(period);
   const leading = fromDateKey(dates[0]).getDay();
   const cells: (DateKey | null)[] = [...Array<null>(leading).fill(null), ...dates];
@@ -61,6 +64,7 @@ export function CalendarGrid({ period, days, today, selected, onPressDay, onLong
                 key={date}
                 date={date}
                 status={days.get(date)}
+                hasExtra={hasOvertime(overtime?.get(date))}
                 isToday={date === today}
                 isSelected={selected.has(date)}
                 onPress={() => onPressDay(date)}
@@ -76,9 +80,12 @@ export function CalendarGrid({ period, days, today, selected, onPressDay, onLong
   );
 }
 
+const hasOvertime = (o: DayOvertime | undefined) => !!o && o.extraMs + o.extraDoubleMs >= MINUTE;
+
 function DayCell({
   date,
   status,
+  hasExtra,
   isToday,
   isSelected,
   onPress,
@@ -86,6 +93,7 @@ function DayCell({
 }: {
   date: DateKey;
   status: DayStatus | undefined;
+  hasExtra: boolean;
   isToday: boolean;
   isSelected: boolean;
   onPress: () => void;
@@ -104,9 +112,9 @@ function DayCell({
   switch (status?.type) {
     case 'worked':
       caption = `${Math.round((status.workedMs / HOUR) * 10) / 10}h`.replace('.', ',');
-      captionColor = status.incomplete ? 'danger' : 'work';
+      captionColor = status.incomplete ? 'danger' : hasExtra ? 'extra' : 'work';
       if (status.holiday) ring = colors.holiday;
-      a11y = status.incomplete ? 'jornada incompleta' : `trabalhado ${caption}`;
+      a11y = status.incomplete ? 'jornada incompleta' : `trabalhado ${caption}${hasExtra ? ', com hora extra' : ''}`;
       break;
     case 'dayOff':
       fill = colors[dayOffColor[status.kind]];

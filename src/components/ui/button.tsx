@@ -58,14 +58,14 @@ export function Button({
       hitSlop={size === 'sm' ? 6 : undefined}
       style={[
         styles.base,
-        { height: heights[size], backgroundColor: background, opacity: disabled ? 0.4 : 1 },
+        { minHeight: heights[size], backgroundColor: background, opacity: disabled ? 0.4 : 1 },
         variant === 'secondary' && { borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border },
         block && styles.block,
       ]}
     >
       <View style={styles.content}>
         {icon && <Icon name={icon} size={20} color={foreground} />}
-        <Text variant={size === 'sm' ? 'caption' : 'headline'} color={foreground}>
+        <Text variant={size === 'sm' ? 'caption' : 'headline'} color={foreground} align="center" style={styles.label}>
           {label}
         </Text>
       </View>
@@ -77,10 +77,13 @@ const styles = StyleSheet.create({
   base: {
     borderRadius: radius.full,
     paddingHorizontal: spacing.xl,
+    paddingVertical: spacing.sm,
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden',
   },
   block: { alignSelf: 'stretch' },
-  content: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  content: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.sm, maxWidth: '100%' },
+  // Rótulo longo quebra em linhas (centralizado) em vez de sumir em telas pequenas
+  label: { flexShrink: 1 },
 });
